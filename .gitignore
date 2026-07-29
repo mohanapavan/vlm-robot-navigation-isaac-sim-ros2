@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+qwen_env/
+
+# Model weights / large artifacts (download via setup scripts)
+weights/
+*.pth
+*.safetensors
+
+# ROS 2 bags & generated outputs
+warehouse_bag/
+*.db3
+my_map.yaml
+my_map.pgm
+scene_graph.json
+
+# OS
+.DS_Store
