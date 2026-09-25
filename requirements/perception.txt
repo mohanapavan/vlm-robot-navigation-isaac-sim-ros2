@@ -1,0 +1,14 @@
+# Environment for vlm_nav/build_scene_graph.py (GroundingDINO). See setup/install_groundingdino.sh.
+#
+# GroundingDINO's BERT wrapper does not work with recent transformers releases, hence the older pin;
+# the Qwen brain uses a different environment (requirements/brain.txt).
+# torch 2.8.0's default wheel is built for CUDA 12.8, which RTX 50-series (sm_120) GPUs need (>= 2.7).
+-c constraints.txt
+torch==2.8.0
+torchvision==0.23.0
+transformers==4.40.2
+supervision==0.21.0
+addict
+yapf
+timm
+pycocotools

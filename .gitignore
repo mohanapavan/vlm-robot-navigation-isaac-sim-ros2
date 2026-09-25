@@ -19,3 +19,13 @@ scene_graph.json
 
 # OS
 .DS_Store
+
+# colcon / ament build output
+build/
+install/
+log/
+*.egg-info/
+
+# Isaac Sim / SLAM databases
+rtabmap.db
+*.db

@@ -1,0 +1,4 @@
+# Unit tests (no GPU / ROS needed for most of them).
+-c constraints.txt
+pytest
+flake8

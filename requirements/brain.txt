@@ -1,0 +1,11 @@
+# Environment for vlm_nav/robot_brain.py (Qwen2.5-VL). See setup/install_qwen.sh.
+#
+# Qwen2_5_VLForConditionalGeneration needs transformers >= 4.49.
+# torch 2.8.0's default wheel is built for CUDA 12.8, which RTX 50-series (sm_120) GPUs need (>= 2.7).
+-c constraints.txt
+torch==2.8.0
+torchvision==0.23.0
+transformers==4.57.1
+accelerate==1.10.1
+Pillow==10.4.0
+jinja2==3.1.6      # the apt jinja2 (3.0.x) that --system-site-packages exposes is too old for chat templates

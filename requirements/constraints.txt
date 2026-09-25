@@ -1,0 +1,8 @@
+# Shared by both Python environments.
+#
+# ROS 2 Humble's compiled message/cv2 bindings are built against NumPy 1.x and fail to import under NumPy 2
+# ("A module that was compiled using NumPy 1.x cannot be run in NumPy 2"), so NumPy must stay on 1.x.
+numpy==1.26.4
+# opencv-python 4.12+ requires NumPy 2.
+opencv-python<4.12
+opencv-python-headless<4.12
