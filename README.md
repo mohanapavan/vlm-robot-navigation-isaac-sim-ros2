@@ -1,7 +1,11 @@
 # Language-Guided Semantic Robot Navigation in NVIDIA Isaac Sim
-### ROS 2 · SLAM · Nav2 · GroundingDINO · Qwen2.5-VL
+### ROS 2 · SLAM (slam_toolbox lidar or RTAB-Map stereo) · Nav2 · GroundingDINO · Qwen2.5-VL
 
-> A **vision-language-model (VLM) robot** that maps a warehouse with **SLAM**, builds an **open-vocabulary semantic scene graph** with **GroundingDINO**, and then navigates to **natural-language goals** ("*go to the forklift*", "*go forward 1 meter*", "*what do you see?*") through **Nav2** — all reasoned by **Qwen2.5-VL** and simulated in **NVIDIA Isaac Sim** with **ROS 2 Humble**.
+> A **vision-language-model (VLM) robot** that maps a warehouse with **SLAM**, builds an
+> **open-vocabulary semantic scene graph** with **GroundingDINO** (object positions in the SLAM map frame),
+> and then navigates to **natural-language goals** ("*go to the forklift*", "*go forward 1 meter*",
+> "*what do you see?*") through **Nav2**, all reasoned by **Qwen2.5-VL** in **NVIDIA Isaac Sim** with
+> **ROS 2 Humble**.
 
 ![Isaac Sim](https://img.shields.io/badge/NVIDIA_Isaac_Sim-simulation-76B900?logo=nvidia&logoColor=white)
 ![ROS 2](https://img.shields.io/badge/ROS_2-Humble-22314E?logo=ros&logoColor=white)
@@ -10,119 +14,143 @@
 ![Qwen2.5-VL](https://img.shields.io/badge/VLM-Qwen2.5--VL_3B-6A5ACD)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-**Keywords:** vision-language model robot navigation · natural language navigation · open-vocabulary detection · semantic scene graph · Isaac Sim ROS 2 · slam_toolbox · Nav2 · GroundingDINO · Qwen2.5-VL · LLM robot control · mobile robot autonomy.
-
----
-
 ## Overview
 
-This project turns a simulated mobile robot into one you can **command in plain English**. It combines four building blocks into a single pipeline:
+1. **SLAM** - `slam_toolbox` on the 2-D lidar (recommended, `slam_lidar.launch.py`) or RTAB-Map on the stereo camera
+   fused with odometry/IMU by an EKF (`slam.launch.py`) builds the occupancy map and the `map -> odom -> base_link`
+   TF chain. One launch file starts either pipeline.
+2. **Open-vocabulary perception** - GroundingDINO detects objects (*box, shelf, pallet, forklift, door, ...*) in
+   recorded frames. Stereo matching gives metric depth, so each detection becomes a **3-D point in the map frame**;
+   repeated sightings are clustered into distinct instances (`box_1`, `box_2`, `forklift_1`, ...).
+3. **Autonomous navigation** - Nav2 plans on the live SLAM map and drives to any goal pose.
+4. **The robot brain** - Qwen2.5-VL turns your sentence (plus the live camera image and the robot's pose) into
+   `GOAL:<object name>`, `MOVE:<direction> <m>`, `STOP`, or a plain answer. **The model never types coordinates**: it
+   names an object and the code looks up where it is.
 
-1. **SLAM mapping** — `slam_toolbox` builds a 2‑D occupancy map of a warehouse while the robot is tele-operated, and a ROS 2 bag records the camera, LiDAR, odometry and TF.
-2. **Open-vocabulary perception** — **GroundingDINO** runs over the recorded camera frames to detect arbitrary objects (*box, shelf, pallet, forklift, door, crate, container, ladder, cone…*) and fuses each detection with the robot's odometry into a **semantic scene graph** (`object → averaged x, y, z`).
-3. **Autonomous navigation** — **Nav2** localizes on the saved map and drives the robot to any goal pose.
-4. **The robot brain** — **Qwen2.5-VL** takes your natural-language instruction (plus the live camera image and current pose), grounds it against the scene graph, and emits a structured action — `GOAL:(x,y)`, `RELATIVE:(dx,dy)`, `STOP`, or a description — which is dispatched to Nav2.
-
-The result is language-guided **semantic navigation**: ask for an object by name and the robot goes there; ask it to move relative to itself and it does; ask what it sees and it describes the camera view.
-
-## System Architecture
+## System architecture
 
 ```mermaid
 flowchart TD
-    USD["NVIDIA Isaac Sim scene<br/>(scene/slam.usd)"]
-    subgraph SENSORS["Robot sensors — ROS 2 topics"]
-        CAM["/front_stereo_camera/left/image_raw"]
-        LID["/front_3d_lidar/lidar_points → /scan"]
-        ODOM["/chassis/odom + /tf"]
+    SIM["NVIDIA Isaac Sim<br/>scene/slam.usd (Nova Carter + warehouse)"]
+    subgraph TOPICS["ROS 2 topics"]
+        CAM["front stereo camera<br/>image_raw + camera_info (best-effort)"]
+        ODOM["/chassis/odom + /chassis/imu"]
+        CLK["/clock"]
     end
-    USD --> SENSORS
+    SIM --> TOPICS
 
-    LID --> SLAM["slam_toolbox<br/>(online 2-D SLAM)"]
-    ODOM --> SLAM
-    SLAM --> MAP["Occupancy map<br/>my_map.yaml / .pgm"]
+    ODOM --> EKF["ekf_node<br/>/odometry/filtered"]
+    CAM --> RTAB["RTAB-Map (stereo)<br/>map -> odom TF, /rtabmap/map"]
+    EKF --> RTAB
+    RTAB --> RELAY["map_relay<br/>latched /map"]
+    RELAY --> NAV["Nav2<br/>navigation.launch.py"]
 
-    CAM --> BAG["ros2 bag record<br/>warehouse_bag"]
-    ODOM --> BAG
-    BAG --> GD["GroundingDINO<br/>perception/build_scene_graph.py"]
-    GD --> SG["scene_graph.json<br/>object → x, y, z, count"]
+    CAM --> BAG["record_bag<br/>stereo pairs + /tf"]
+    RTAB -. "map TF" .-> BAG
+    BAG --> GD["build_scene_graph<br/>GroundingDINO + stereo depth + TF"]
+    GD --> SG["scene_graph.json<br/>objects in the map frame"]
 
-    MAP --> NAV["Nav2<br/>navigation_launch.py"]
-    SG --> BRAIN["Qwen2.5-VL robot brain<br/>robot_brain/robot_brain.py"]
+    SG --> BRAIN["robot_brain<br/>Qwen2.5-VL"]
     CAM --> BRAIN
-    ODOM --> BRAIN
-    USER(["User — natural language<br/>'go to the forklift'"]) --> BRAIN
+    USER(["'go to the forklift'"]) --> BRAIN
     BRAIN -->|"GOAL / RELATIVE / STOP"| NAV
-    NAV -->|"/navigate_to_pose"| USD
+    NAV -->|"/cmd_vel"| SIM
 ```
-
-## How it works, stage by stage
-
-| Stage | Tool | Input | Output |
-|---|---|---|---|
-| 1. Map + record | `slam_toolbox`, `teleop_twist_keyboard`, `ros2 bag` | LiDAR, odom, camera | `my_map.yaml`, `warehouse_bag` |
-| 2. Navigation | `nav2_bringup` | saved map | reachable goal poses |
-| 3. Scene graph | GroundingDINO | `warehouse_bag` | `scene_graph.json` |
-| 4. Robot brain | Qwen2.5-VL 3B | scene graph + camera + odom + your text | Nav2 goal / answer |
-
-**The robot brain's action grammar** (`robot_brain/robot_brain.py`):
-- `GOAL:(x,y)` — navigate to a **named object** from the scene graph (with a small stand-off offset so it stops in front of, not inside, the object).
-- `RELATIVE:(dx,dy)` — robot-relative move ("forward 1 m", "left 2 m"); the system adds the offset to the current pose.
-- `STOP` — cancel the active goal.
-- Plain text — answer questions or describe the camera view (vision is triggered by words like *see / look / camera / view*).
 
 ## Repository structure
 
 ```
-vlm-robot-navigation-isaac-sim-ros2/
-├── README.md
-├── LICENSE
-├── scene/
-│   └── slam.usd                     # the Isaac Sim warehouse scene
-├── perception/
-│   └── build_scene_graph.py         # GroundingDINO → scene_graph.json
-├── robot_brain/
-│   └── robot_brain.py               # Qwen2.5-VL natural-language navigation
-├── setup/
-│   ├── install_groundingdino.sh
-│   └── install_qwen.sh
-└── docs/
-    └── commands.md                  # every ROS 2 command, in order
+vlm-robot-navigation-isaac-sim-ros2/          # a ROS 2 (ament_python) package named vlm_nav
+├── package.xml  setup.py  setup.cfg  resource/
+├── vlm_nav/
+│   ├── build_scene_graph.py   # bag -> scene_graph.json (stereo depth + TF + clustering)
+│   ├── detector.py            # GroundingDINO wrapper (lazy torch import)
+│   ├── robot_brain.py         # Qwen2.5-VL chat loop -> Nav2 goals
+│   ├── command_parser.py      # prompt + GOAL/RELATIVE/STOP grammar
+│   ├── scene_graph.py         # clustering, name resolution, JSON I/O
+│   ├── stereo.py  geometry.py  image_utils.py  pairing.py
+│   ├── record_bag.py          # throttled stereo + TF bag recorder
+│   └── map_relay.py           # /rtabmap/map -> latched /map
+├── launch/    slam_lidar.launch.py  slam.launch.py  navigation.launch.py
+├── config/    slam_toolbox_lidar.yaml  nav2_params_lidar.yaml  ekf.yaml  nav2_params_camera.yaml  map_view.rviz
+├── scene/     slam.usd                            # Isaac Sim scene, now with a /clock publisher
+├── scripts/   pipeline.sh  add_clock_graph.py  nav_smoke_test.py
+├── setup/     install_groundingdino.sh  install_qwen.sh
+├── requirements/  perception.txt  brain.txt  dev.txt  constraints.txt
+├── tests/
+└── docs/commands.md
 ```
-
-## Requirements
-
-- **NVIDIA Isaac Sim** + an NVIDIA GPU (CUDA) — opens `scene/slam.usd`.
-- **ROS 2 Humble** with `slam_toolbox`, `nav2_bringup`, `teleop_twist_keyboard`, `nav2_map_server`.
-- Python: `torch`, `transformers`, `accelerate`, `qwen-vl-utils`, `rosbags`, `opencv-python`, `Pillow`, GroundingDINO.
 
 ## Quickstart
 
-Full, ordered commands are in **[docs/commands.md](docs/commands.md)**. In short:
+Full, ordered commands (including one-time machine setup) are in **[docs/commands.md](docs/commands.md)**.
 
 ```bash
-# 1) Map the environment + record a bag (Isaac Sim playing scene/slam.usd)
-#    slam_toolbox + teleop, then:  ros2 run nav2_map_server map_saver_cli -f ~/my_map
+# build
+mkdir -p ~/ws/src && cd ~/ws/src && git clone <this repo> vlm_nav && cd ~/ws
+colcon build --symlink-install && source install/setup.bash
 
-# 2) Build the semantic scene graph from the bag
+# 1) Isaac Sim: open scene/slam.usd, press Play, check `ros2 topic hz /clock`
+
+# 2) SLAM + map (one terminal), then drive around and record stereo data (two more terminals)
+ros2 launch vlm_nav slam_lidar.launch.py          # or: slam.launch.py (camera only)
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+ros2 run vlm_nav record_bag --output ~/warehouse_bag --ros-args -p use_sim_time:=true
+
+# 3) scene graph (GroundingDINO env)
 bash setup/install_groundingdino.sh
-python3 perception/build_scene_graph.py
+source ~/perception_env/bin/activate
+python -m vlm_nav.build_scene_graph --bag ~/warehouse_bag
 
-# 3) Bring up Nav2 on the saved map
-ros2 launch nav2_bringup navigation_launch.py use_sim_time:=True map:=/root/my_map.yaml
-
-# 4) Talk to the robot
-bash setup/install_qwen.sh
-source ~/qwen_env/bin/activate
-python3 robot_brain/robot_brain.py
+# 4) navigation + brain (Qwen env)
+ros2 launch vlm_nav navigation.launch.py sensor:=lidar     # (no argument for the camera pipeline)
+bash setup/install_qwen.sh && source ~/qwen_env/bin/activate
+python -m vlm_nav.robot_brain --ros-args -p use_sim_time:=true
 ```
 
-Example prompts once the brain is running:
-> `go to the forklift` · `go forward 1 meter` · `move back 2 meters` · `what do you see?` · `stop`
+Once the map and scene graph exist, `scripts/pipeline.sh start` brings up SLAM (resuming the saved map) and Nav2 in the
+right order; then run the brain. See the *Quick start* at the top of [docs/commands.md](docs/commands.md).
+
+Example prompts: `go to the forklift` · `go to box_2` · `go forward 1 meter` · `move left 2 meters` ·
+`which forklift is closest?` · `what do you see?` · `stop`
+
+## What was fixed (see [CHANGELOG.md](CHANGELOG.md))
+
+The original pipeline stored *where the robot stood* instead of where the object was, in the odometry frame but
+used as the map frame, and let the model copy coordinates out of the prompt. The scene graph is now built from
+stereo depth and TF in the map frame, goals are looked up by name, relative moves respect heading, goals face the
+object, results and timeouts are reported, and the whole pipeline starts from launch files.
+
+## Testing
+
+```bash
+source /opt/ros/humble/setup.bash
+pip install -r requirements/dev.txt
+python3 -m pytest tests -q            # ~100 tests; ROS tests use their own DDS domain (87)
+python3 scripts/nav_smoke_test.py     # end-to-end check on the *running* sim + SLAM + Nav2
+```
+
+## Known limitations
+
+- **Map drift:** the bag stores the `map -> odom` TF as it was at record time. If RTAB-Map later closes a loop and
+  shifts the map, objects located earlier are not moved with it.
+- **Positions are object surfaces**, not centres (stereo sees the face toward the camera); `--standoff` accounts
+  for it.
+- **Camera-only mapping is coarse.** The stereo occupancy grid is noisy (thick walls, narrow gaps): goals in tight
+  spaces or unexplored areas are refused by the planner and end `ABORTED`. Prefer the lidar pipeline where you can.
+- **Keep the same SLAM session.** Object positions live in the `map` frame of the SLAM run active while recording;
+  restarting SLAM (or the simulator) shifts `map` and therefore every object.
+- The lidar pipeline was checked for map, TF chain and Nav2 planning on the running simulator; driving with it and the
+  brain end to end was not repeated (that was done with the camera pipeline).
+- **Simulator load:** with all Nova Carter cameras rendering, Isaac Sim can run well below real time; Nav2 on a
+  heavily loaded machine can stall after a few goals (behaviour-tree tick warnings, repeated controller aborts).
+- GroundingDINO and Qwen2.5-VL need a GPU environment and model downloads; their code paths are exercised in the tests
+  only through stand-ins.
 
 ## Acknowledgements
 
 - [NVIDIA Isaac Sim](https://developer.nvidia.com/isaac/sim)
-- [`slam_toolbox`](https://github.com/SteveMacenski/slam_toolbox) and [Nav2](https://navigation.ros.org/)
+- [RTAB-Map](https://github.com/introlab/rtabmap_ros), [robot_localization](https://github.com/cra-ros-pkg/robot_localization) and [Nav2](https://navigation.ros.org/)
 - [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO) (IDEA-Research)
 - [Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL) (Alibaba Qwen team)
 
