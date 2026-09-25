@@ -87,7 +87,7 @@ Full, ordered commands (including one-time machine setup) are in **[docs/command
 
 ```bash
 # build
-mkdir -p ~/ws/src && cd ~/ws/src && git clone <this repo> vlm_nav && cd ~/ws
+mkdir -p ~/ws/src && cd ~/ws/src && git clone https://github.com/mohanapavan/vlm-robot-navigation-isaac-sim-ros2.git vlm_nav && cd ~/ws
 colcon build --symlink-install && source install/setup.bash
 
 # 1) Isaac Sim: open scene/slam.usd, press Play, check `ros2 topic hz /clock`
