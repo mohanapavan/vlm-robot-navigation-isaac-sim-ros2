@@ -114,6 +114,13 @@ right order; then run the brain. See the *Quick start* at the top of [docs/comma
 Example prompts: `go to the forklift` · `go to box_2` · `go forward 1 meter` · `move left 2 meters` ·
 `which forklift is closest?` · `what do you see?` · `stop`
 
+## Results
+
+See **[docs/RESULTS.md](docs/RESULTS.md)** (also as a Word report, `docs/Nova_VLM_Navigation_Report.docx`): a video of Nova driving to
+the forklift, the saved map and scene graph, how close the robot gets, and everything we changed.
+
+[![Nova drives to the forklift](docs/media/nova_reaches_forklift.gif)](docs/media/nova_reaches_forklift.mp4)
+
 ## What was fixed (see [CHANGELOG.md](CHANGELOG.md))
 
 The original pipeline stored *where the robot stood* instead of where the object was, in the odometry frame but
