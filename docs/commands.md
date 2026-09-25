@@ -128,7 +128,8 @@ This starts, with `use_sim_time`:
 | `rviz2` | `config/map_view.rviz` (disable with `rviz:=false`) |
 
 The simulator already publishes `odom -> base_link`, so there is no EKF and no `map_relay`. A map shows up in RViz
-immediately (even before the robot moves) and grows as you drive.
+immediately (even before the robot moves) and grows as you drive. In `mode:=localization` an additional `map_server`
+serves your saved map (`~/my_map.yaml`) to Nav2 as `/map`, so the costmaps never change size mid-drive.
 
 ### 3B. Stereo camera + RTAB-Map (no lidar)
 
@@ -256,7 +257,7 @@ ros2 launch vlm_nav navigation.launch.py sensor:=lidar     # after 3A
 ros2 launch vlm_nav navigation.launch.py                   # after 3B (camera)
 ```
 
-`sensor:=lidar` uses `config/nav2_params_lidar.yaml` (adds a live `/scan` obstacle layer, reads `/chassis/odom`);
+`sensor:=lidar` uses `config/nav2_params_lidar.yaml` (static map layers only, reads `/chassis/odom`);
 the default uses `config/nav2_params_camera.yaml`.
 
 Wait for `Managed nodes are active`, then test with a goal inside the mapped area:
@@ -340,10 +341,11 @@ never interfere with a running simulator.
 | `build_scene_graph`: `No map <- ..._optical transform` | `/tf_static` was not recorded (the optical static TF lives there). Re-record, or `--camera-frame front_stereo_camera_left_rgb` |
 | `build_scene_graph`: `stereo baseline unknown` | Right `camera_info` has `P[3] = 0`; pass `--baseline 0.15` |
 | Objects at wrong places after loop closure | The bag stores the TF at record time; map corrections made later are not applied retroactively |
-| Nav2 says `Reached the goal!` instantly and the robot does not move | Same cause as the next row (the goal cannot be transformed, so it defaults to (0, 0)). Never put an `ObstacleLayer` on `/scan` in the *local* costmap of `nav2_params_lidar.yaml` |
+| Nav2 says `Reached the goal!` instantly and the robot does not move | Same cause as the next row (the goal cannot be transformed, so it defaults to (0, 0)). Never put an `ObstacleLayer` on `/scan` in either costmap of `nav2_params_lidar.yaml` |
 | Nav2: `Transform data too old when converting from map to odom`, goals abort | The `map -> odom` transform's *timestamp* is not advancing: SLAM's own clock froze. Check `ros2 topic echo /map --field header.stamp` against `ros2 topic echo /clock`: they must move together. Restart the SLAM launch |
 | Nav2 bring-up: `failed to send response to .../change_state (timeout)` | DDS shared-memory trouble. Stop all ROS nodes, then run the reset in section 2 and start again. Do not mix `FASTDDS_BUILTIN_TRANSPORTS=UDPv4` processes with default ones (SLAM's clock froze while I did) |
 | `ros2 run vlm_nav robot_brain` fails with `No module named torch` | Use `python -m vlm_nav.robot_brain` inside the venv (see section 7) |
+| Robot ends up wedged against a forklift's forks | The forks sit below the 2-D lidar's scan plane, so the map does not show them. Drive out with a short forward `cmd_vel`, or press Stop then Play in Isaac Sim |
 | Robot stuck against an object in the simulator | Press Stop then Play in Isaac Sim (robot returns to start), then restart SLAM (`mode:=localization` to keep the map) |
 | TF jitter on `odom -> base_link` | The sim publishes it and the EKF republishes it. They agree to 0.02 mm here; on a real robot set `publish_tf: false` in `config/ekf.yaml` |
 | `ModuleNotFoundError: numpy` ABI error | ROS 2 Humble needs NumPy 1.x; keep the pins in `requirements/constraints.txt` |

@@ -8,6 +8,11 @@ Resume: after mapping, save the SLAM state (docs/commands.md, section 4):
 Later, restart the simulator (the robot returns to its start pose, which is the map origin) and launch with
 mode:=localization: the same map frame is restored, so scene-graph coordinates stay valid.
 
+In localization mode Nav2 gets its /map from nav2_map_server serving the saved map image (map_yaml:=, default
+~/my_map.yaml, written by map_saver_cli), while slam_toolbox only provides the robot's localization (its own map is
+remapped to /slam_toolbox/map). slam_toolbox re-publishes a slightly different-sized map every so often, and every
+size change resets Nav2's costmaps, which showed up as aborted goals in the middle of a drive.
+
 Starts, with use_sim_time:
   - a static transform  front_2d_lidar -> base_scan  (the scan's frame_id is `base_scan`, but the simulator only
     publishes TF for `front_2d_lidar`, which sits at the same place with the same orientation)
@@ -62,11 +67,20 @@ def generate_launch_description():
         package='slam_toolbox', executable='async_slam_toolbox_node', name='slam_toolbox',
         parameters=[slam_params, sim_time], output='screen',
         condition=IfCondition(PythonExpression(["'", mode, "' == 'mapping'"])))
+    in_localization = IfCondition(PythonExpression(["'", mode, "' == 'localization'"]))
     localization = Node(
         package='slam_toolbox', executable='localization_slam_toolbox_node', name='slam_toolbox',
         parameters=[slam_params, sim_time,
                     {'mode': 'localization', 'map_file_name': LaunchConfiguration('map_file')}],
-        output='screen', condition=IfCondition(PythonExpression(["'", mode, "' == 'localization'"])))
+        remappings=[('/map', '/slam_toolbox/map')],
+        output='screen', condition=in_localization)
+    map_server = Node(
+        package='nav2_map_server', executable='map_server', name='map_server', output='screen',
+        parameters=[{'yaml_filename': LaunchConfiguration('map_yaml')}, sim_time], condition=in_localization)
+    map_lifecycle = Node(
+        package='nav2_lifecycle_manager', executable='lifecycle_manager', name='lifecycle_manager_map',
+        output='screen', parameters=[{'autostart': True, 'node_names': ['map_server']}, sim_time],
+        condition=in_localization)
 
     rviz = Node(package='rviz2', executable='rviz2', name='rviz2',
                 arguments=['-d', os.path.join(cfg, 'map_view.rviz')],
@@ -79,7 +93,9 @@ def generate_launch_description():
         DeclareLaunchArgument('mode', default_value='mapping', description='mapping or localization'),
         DeclareLaunchArgument('map_file', default_value=os.path.expanduser('~/my_map_posegraph'),
                               description='saved slam_toolbox pose graph, without extension (localization mode)'),
+        DeclareLaunchArgument('map_yaml', default_value=os.path.expanduser('~/my_map.yaml'),
+                              description='saved map image (localization mode): served to Nav2 as /map'),
         DeclareLaunchArgument('camera', default_value='front_stereo_camera'),
         DeclareLaunchArgument('rviz', default_value='true'),
-        lidar_tf, optical_tf('left'), optical_tf('right'), mapping, localization, rviz,
+        lidar_tf, optical_tf('left'), optical_tf('right'), mapping, localization, map_server, map_lifecycle, rviz,
     ])

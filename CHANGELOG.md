@@ -44,7 +44,7 @@ test that guards each fix (`tests/`).
 The original design used `slam_toolbox` on the lidar; the camera-only RTAB-Map pipeline is now an alternative.
 `launch/slam_lidar.launch.py` starts `slam_toolbox` (`config/slam_toolbox_lidar.yaml`) plus the static transforms the
 simulator does not provide (`front_2d_lidar -> base_scan`, the camera optical frames). `navigation.launch.py sensor:=lidar`
-uses `config/nav2_params_lidar.yaml` (live `/scan` obstacle layers, `/chassis/odom`). On the running simulator: the map is
+uses `config/nav2_params_lidar.yaml` (static map layers, `/chassis/odom`). On the running simulator: the map is
 published immediately, the `map -> base_link / base_scan / camera_optical` TF chain resolved in 2061 of 2061 lookups, and
 Nav2's planner returned paths without moving the robot.
 
@@ -62,12 +62,18 @@ Nav2's planner returned paths without moving the robot.
   are never acted on.
 - **Goal selection asks Nav2's planner**: nearest reachable instance, at the stand-off and then progressively further
   out; refuses cleanly if nothing is reachable (the nearest forklift's plain approach point had no path in the real map).
-- **Nav2 lidar pipeline: false "Reached the goal!" (root cause found).** With an `ObstacleLayer` on `/scan` in the
-  controller's local costmap, the controller's TF listener kept only the first `map->odom` sample after start; Nav2 logged
-  `Transform data too old when converting from map to odom`, failed to transform the goal, ended up with a default (0, 0)
-  end pose, and declared success instantly whenever the robot stood at the map origin (any other position: abort loops).
-  The lidar parameter file now gives the local costmap the static `/map` layer instead (`tests/test_configs.py` guards it);
-  verified: a 2 m goal really drives the car there. The camera pipeline never had that layer.
+- **Nav2 lidar pipeline: intermittent aborts and false "Reached the goal!" (root cause found).** With a `/scan`
+  `ObstacleLayer` in a Nav2 costmap, that costmap's TF handling stopped after start-up. The *global* costmap (planner) froze
+  its robot pose at the start-up position, so every plan began where the robot had been; from anywhere else the controller
+  discarded the plan as out of range and aborted (`Resulting plan has 0 poses in it`), which is why goals only worked near
+  the start-up position. The *local* costmap (controller) kept a single `map->odom` sample (`Transform data too old when
+  converting from map to odom`) and Nav2 declared "Reached the goal!" instantly whenever the robot stood at the map origin.
+  Found by comparing each costmap's published footprint with the true robot pose. The lidar parameter file now uses only the
+  static `/map` layer in both costmaps (`tests/test_configs.py` guards it). Verified: a goal from 3.9 m away succeeds and
+  the global costmap's timestamp tracks the sim clock. The camera pipeline never had an obstacle layer.
+- **slam_toolbox in localization mode re-published a slightly different-sized map from time to time**, resetting Nav2's
+  costmaps mid-drive. `slam_lidar.launch.py mode:=localization` now serves the saved map to Nav2 with `nav2_map_server`
+  (`map_yaml:=`, default `~/my_map.yaml`) and remaps slam_toolbox's own map to `/slam_toolbox/map`.
 - `slam_toolbox` TF publish period 0.1 s (10 Hz).
 - `scripts/pipeline.sh start|stop|status`: SLAM (mapping or localization) then Nav2 in the required order.
 - Per-class clustering radius; `record_bag` shutdown fix; `slam_lidar.launch.py mode:=localization` to resume from a saved

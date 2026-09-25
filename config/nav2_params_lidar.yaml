@@ -1,10 +1,16 @@
 # Nav2 parameters for the LIDAR pipeline (slam_lidar.launch.py). Same as nav2_params_camera.yaml except:
-#   - the GLOBAL costmap also uses the /scan obstacle layer (the lidar marks and clears obstacles live)
-#   - the LOCAL costmap (inside controller_server) uses the static /map layer, NOT an obstacle layer:
-#     with an ObstacleLayer on /scan in that process, the controller's TF listener stopped receiving map->odom
-#     after its first sample ("Transform data too old when converting from map to odom"), and Nav2 then
-#     reported "Reached the goal!" instantly for any goal while the robot stood still at the map origin.
 #   - bt_navigator reads /chassis/odom (there is no EKF in the lidar pipeline)
+#   - the costmaps use the static /map layer (the saved lidar map served by map_server) and NO obstacle layer.
+#
+# Do not add an ObstacleLayer on /scan to either costmap. With one, the costmap's TF handling stopped after start-up:
+#   - global costmap (planner_server): its robot pose froze at the start-up position, so every plan began where the
+#     robot *was* when Nav2 started; from anywhere else the controller saw a plan 3+ m away and aborted with
+#     "Resulting plan has 0 poses in it" (goals only worked near the start-up position);
+#   - local costmap (controller_server): it kept only the first map->odom sample ("Transform data too old when
+#     converting from map to odom"), and Nav2 then reported "Reached the goal!" instantly whenever the robot stood
+#     at the map origin.
+# The camera pipeline never had an obstacle layer, which is why it never showed this.
+
 controller_server:
   ros__parameters:
     use_sim_time: true
@@ -98,25 +104,11 @@ global_costmap:
       publish_frequency: 1.0
       rolling_window: false
       track_unknown_space: true
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      plugins: ["static_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_topic: /map
         subscribe_to_updates: true
-      obstacle_layer:
-        plugin: "nav2_costmap_2d::ObstacleLayer"
-        enabled: true
-        observation_sources: scan
-        scan:
-          topic: /scan
-          data_type: "LaserScan"
-          marking: true
-          clearing: true
-          max_obstacle_height: 2.0
-          obstacle_max_range: 4.0
-          obstacle_min_range: 0.0
-          raytrace_max_range: 5.0
-          raytrace_min_range: 0.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0

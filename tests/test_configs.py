@@ -12,20 +12,19 @@ def _load(name):
 
 
 @pytest.mark.parametrize('name', ['nav2_params_camera.yaml', 'nav2_params_lidar.yaml'])
-def test_local_costmap_has_no_scan_obstacle_layer(name):
-    """An ObstacleLayer on /scan inside controller_server made its TF listener stop receiving map->odom, so Nav2
-    reported 'Reached the goal!' for any goal while the robot stood still. Keep it out of the local costmap."""
-    local = _load(name)['local_costmap']['local_costmap']['ros__parameters']
-    assert 'obstacle_layer' not in local['plugins'] and 'obstacle_layer' not in local
+@pytest.mark.parametrize('costmap', ['local_costmap', 'global_costmap'])
+def test_no_scan_obstacle_layer_in_either_costmap(name, costmap):
+    """An ObstacleLayer on /scan broke the costmap's TF handling after start-up (the global costmap's robot pose froze
+    at the start-up position, so plans began there; the local one kept a single map->odom sample). Keep it out."""
+    params = _load(name)[costmap][costmap]['ros__parameters']
+    assert 'obstacle_layer' not in params['plugins'] and 'obstacle_layer' not in params
 
 
 def test_lidar_params_differ_from_camera_only_where_intended():
     cam, lid = _load('nav2_params_camera.yaml'), _load('nav2_params_lidar.yaml')
     assert lid['bt_navigator']['ros__parameters']['odom_topic'] == '/chassis/odom'
     assert cam['bt_navigator']['ros__parameters']['odom_topic'] == '/odometry/filtered'
-    g = lid['global_costmap']['global_costmap']['ros__parameters']
-    assert g['plugins'] == ['static_layer', 'obstacle_layer', 'inflation_layer']
-    assert g['obstacle_layer']['scan']['topic'] == '/scan'
+    assert lid['global_costmap']['global_costmap']['ros__parameters']['plugins'] == ['static_layer', 'inflation_layer']
     assert lid['local_costmap']['local_costmap']['ros__parameters']['plugins'] == ['static_layer', 'inflation_layer']
     for key in ('controller_server', 'planner_server', 'behavior_server', 'velocity_smoother'):
         assert lid[key] == cam[key], key
