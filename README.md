@@ -63,7 +63,10 @@ flowchart TD
 vlm-robot-navigation-isaac-sim-ros2/          # a ROS 2 (ament_python) package named vlm_nav
 ├── package.xml  setup.py  setup.cfg  resource/
 ├── vlm_nav/
-│   ├── build_scene_graph.py   # bag -> scene_graph.json (stereo depth + TF + clustering)
+│   ├── build_scene_graph.py   # bag -> scene_graph.json (stereo depth + TF + clustering + consolidation)
+│   ├── consolidate.py         # raw detection clusters -> few trustworthy objects and groups (no bag needed)
+│   ├── map_grid.py            # saved / live occupancy map: free?, clearance, corrected map yaml
+│   ├── evaluation.py          # score a scene graph against the simulator's real objects
 │   ├── detector.py            # GroundingDINO wrapper (lazy torch import)
 │   ├── robot_brain.py         # Qwen2.5-VL chat loop -> Nav2 goals
 │   ├── command_parser.py      # prompt + GOAL/RELATIVE/STOP grammar
@@ -74,9 +77,12 @@ vlm-robot-navigation-isaac-sim-ros2/          # a ROS 2 (ament_python) package n
 ├── launch/    slam_lidar.launch.py  slam.launch.py  navigation.launch.py
 ├── config/    slam_toolbox_lidar.yaml  nav2_params_lidar.yaml  ekf.yaml  nav2_params_camera.yaml  map_view.rviz
 ├── scene/     slam.usd                            # Isaac Sim scene, now with a /clock publisher
-├── scripts/   pipeline.sh  add_clock_graph.py  nav_smoke_test.py
+├── scripts/   pipeline.sh  launch_isaac.sh  add_clock_graph.py  nav_smoke_test.py  check_map_alignment.py
+│              eval_scene_graph.py  plot_scene_graph.py  live_command_test.py  destination_benchmark.py
 ├── setup/     install_groundingdino.sh  install_qwen.sh
 ├── requirements/  perception.txt  brain.txt  dev.txt  constraints.txt
+├── evaluation/  hospital_ground_truth.json    # real object boxes of the hospital scene, for scoring
+├── saved_state/hospital/                      # saved map + detected objects (raw and consolidated) for scene/slam.usd
 ├── tests/
 └── docs/commands.md
 ```
@@ -108,8 +114,11 @@ bash setup/install_qwen.sh && source ~/qwen_env/bin/activate
 python -m vlm_nav.robot_brain --ros-args -p use_sim_time:=true
 ```
 
-Once the map and scene graph exist, `scripts/pipeline.sh start` brings up SLAM (resuming the saved map) and Nav2 in the
-right order; then run the brain. See the *Quick start* at the top of [docs/commands.md](docs/commands.md).
+The repository ships the hospital scene's saved map and detections in [`saved_state/hospital/`](saved_state/hospital/README.md)
+(copy them to `~` as described there); with those, nothing has to be recorded, mapped or detected again.
+Once the map and scene graph exist, `scripts/launch_isaac.sh` opens the scene and presses Play, and `scripts/pipeline.sh start`
+brings up the saved map (`static` mode needs only `~/my_map.yaml`) and Nav2 in the right order; then run the brain. A raw
+`scene_graph.json` is consolidated on load (walls dropped, duplicates merged, piles become one "group" entry). See the *Quick start* at the top of [docs/commands.md](docs/commands.md).
 
 Example prompts: `go to the forklift` · `go to box_2` · `go forward 1 meter` · `move left 2 meters` ·
 `which forklift is closest?` · `what do you see?` · `stop`
@@ -120,6 +129,20 @@ See **[docs/RESULTS.md](docs/RESULTS.md)** (also as a Word report, `docs/Nova_VL
 the forklift, the saved map and scene graph, how close the robot gets, and everything we changed.
 
 [![Nova drives to the forklift](docs/media/nova_reaches_forklift.gif)](docs/media/nova_reaches_forklift.mp4)
+
+Measured on the live hospital scene (details in **[docs/EVALUATION.md](docs/EVALUATION.md)**): 5 typed commands 5/5; 5 easy +
+5 medium + 5 hard destinations (3 m to 56 m) 15/15, average goal error 0.22 m; 12 of the 15 entries the robot drove to are real
+objects (the saved detections, consolidated from 149 to 46 entries, are 61 % precise and cover 18 % of the real objects).
+
+![The saved hospital map](docs/media/11_saved_map_hospital.png)
+
+![Raw detections vs consolidated scene graph on the saved map](docs/media/09_scene_graph_raw_vs_consolidated.png)
+
+![The 15 benchmark destinations](docs/media/10_benchmark_destinations.png)
+
+> **Scene note.** `scene/slam.usd` is now the **hospital** scene (lit rooms, two wander bots). The original warehouse scene is
+> still in the git history (commit `fe68591` and earlier). The forklift video, GIF and figures under *Results* above and in
+> [docs/RESULTS.md](docs/RESULTS.md) come from the original warehouse run and are kept as they were.
 
 ## What was fixed (see [CHANGELOG.md](CHANGELOG.md))
 
@@ -133,8 +156,10 @@ object, results and timeouts are reported, and the whole pipeline starts from la
 ```bash
 source /opt/ros/humble/setup.bash
 pip install -r requirements/dev.txt
-python3 -m pytest tests -q            # ~100 tests; ROS tests use their own DDS domain (87)
+python3 -m pytest tests -q            # ~230 tests; ROS tests use their own DDS domain (87)
 python3 scripts/nav_smoke_test.py     # end-to-end check on the *running* sim + SLAM + Nav2
+~/qwen_env/bin/python scripts/live_command_test.py        # 5 typed commands through Qwen -> Nav2 -> the robot
+~/qwen_env/bin/python scripts/destination_benchmark.py    # 5 easy / 5 medium / 5 hard destinations
 ```
 
 ## Known limitations

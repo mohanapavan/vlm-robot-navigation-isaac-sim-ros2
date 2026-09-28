@@ -14,20 +14,38 @@ source ~/ws/install/setup.bash
 
 ## Quick start (everything already set up)
 
-After the one-time setup and after mapping + building the scene graph (sections 4 and 5):
+With a saved map (`~/my_map.yaml` + `.pgm`) and saved detections (`~/scene_graph/scene_graph.json`), nothing needs to be
+recorded, mapped or detected again. The repository ships the hospital scene's results in `saved_state/hospital/`
+(see its README):
 
 ```bash
-# 1. Isaac Sim: press Stop, then Play (the robot returns to the map origin)
-# 2. SLAM (resuming the saved map) + Nav2, in the background, in the right order:
+# 0. Put the shipped map and detections where the defaults look for them (once)
+cd ~/ws/src/vlm_nav && cp saved_state/hospital/my_map.yaml saved_state/hospital/my_map.pgm ~/
+mkdir -p ~/scene_graph && cp saved_state/hospital/scene_graph*.json ~/scene_graph/
+# 1. Isaac Sim: opens scene/slam.usd, waits for its streamed assets, presses Play (first run downloads ~1 GB, later runs ~30 s)
+~/ws/src/vlm_nav/scripts/launch_isaac.sh
+# 2. Saved map (identity map->odom, no pose graph needed) + Nav2, in the background, in the right order.
+#    Repeat this step after every Stop/Play of the simulator (sim time restarts at 0).
 ~/ws/src/vlm_nav/scripts/pipeline.sh start
-# 3. Talk to the robot:
+# 3. Talk to the robot (a raw scene_graph.json is consolidated on load: see section 5)
 source /opt/ros/humble/setup.bash && source ~/ws/install/setup.bash && source ~/qwen_env/bin/activate
 python -m vlm_nav.robot_brain --scene-graph ~/scene_graph/scene_graph.json --ros-args -p use_sim_time:=true
 # 4. When finished:
 ~/ws/src/vlm_nav/scripts/pipeline.sh stop
 ```
 
-`pipeline.sh start mapping` builds a new map instead. Logs go to `~/pipeline_logs/`.
+`pipeline.sh start` picks the mode itself: `localization` when `~/my_map_posegraph.posegraph` exists, `static` when only
+`~/my_map.yaml` exists, else `mapping` (`pipeline.sh start static|localization|mapping` to choose; `RVIZ=false` to skip RViz).
+Logs go to `~/pipeline_logs/`.
+
+Check the stack against the real simulator (each needs the stack above running; the last two also need Qwen):
+
+```bash
+python3 scripts/check_map_alignment.py                       # does the live lidar sit on the saved map?  (must say ALIGNED)
+python3 scripts/nav_smoke_test.py                            # relative move / named goal / STOP / goal after STOP (no LLM)
+~/qwen_env/bin/python scripts/live_command_test.py           # 5 typed commands through Qwen -> Nav2 -> the robot
+~/qwen_env/bin/python scripts/destination_benchmark.py       # 5 easy + 5 medium + 5 hard destinations, full table
+```
 
 ---
 
@@ -71,14 +89,24 @@ source install/setup.bash
 
 ---
 
-## 1. Launch Isaac Sim (own terminal, leave running)
+## 1. Launch Isaac Sim
+
+```bash
+scripts/launch_isaac.sh [scene.usd]        # default scene/slam.usd; log in ~/pipeline_logs/isaac.log
+```
+
+This starts Isaac Sim, opens the scene, waits until its (streamed) assets are in, and presses Play. The scene's low test
+obstacles (`/World/TestObstacles`) are deleted from the loaded stage; the `.usd` file is never edited
+(`REMOVE_PRIMS="" scripts/launch_isaac.sh` keeps them, `REMOVE_PRIMS=/World/A,/World/B` removes others). Close any Isaac Sim
+that is already running first. Doing it by hand still works:
 
 ```bash
 sudo rm -f /usr/share/vulkan/icd.d/nvidia_icd.json
 cd ~/isaacsim_standalone && ./isaac-sim.sh --/renderer/activeGpu=0
 ```
 
-Open `scene/slam.usd` (Nova Carter + warehouse) and press **Play**. `scene/slam.usd` now contains a
+then open `scene/slam.usd` and press **Play**. **Stop then Play** returns the robot to the map origin but restarts sim time
+at 0, so restart SLAM/Nav2 (`pipeline.sh stop && pipeline.sh start`) afterwards. `scene/slam.usd` now contains a
 `/World/ROS_Clock` graph, so `/clock` is published. Check it before going further:
 
 ```bash
@@ -130,6 +158,13 @@ This starts, with `use_sim_time`:
 The simulator already publishes `odom -> base_link`, so there is no EKF and no `map_relay`. A map shows up in RViz
 immediately (even before the robot moves) and grows as you drive. In `mode:=localization` an additional `map_server`
 serves your saved map (`~/my_map.yaml`) to Nav2 as `/map`, so the costmaps never change size mid-drive.
+
+In `mode:=static` (`ros2 launch vlm_nav slam_lidar.launch.py mode:=static`) there is no slam_toolbox at all: `map_server` serves
+the saved map and an identity `map -> odom` is published. That is exact when the robot starts where the map was built and
+odometry does not drift (true in Isaac Sim after Stop -> Play, and checked by `scripts/check_map_alignment.py`: 100 % of
+the live lidar endpoints land within 0.15 m of the saved map). It needs only `~/my_map.yaml`, not the pose graph.
+The map is served through a corrected copy of the yaml: `map_saver` writes `free_thresh: 0.25`, which makes `map_server`
+read the grey "unexplored" pixels as *free* (Nav2 saw 0 % unknown instead of 67 %); your yaml is not touched.
 
 ### 3B. Stereo camera + RTAB-Map (no lidar)
 
@@ -245,6 +280,33 @@ Output (`scene_graph.json`, version 2):
  "objects": [{"id": "forklift_1", "label": "forklift", "x": 4.1, "y": -2.3, "z": 0.5, "count": 6, "score": 0.62}]}
 ```
 
+### From raw detections to a small, trustworthy graph
+
+`build_scene_graph` now finishes with `consolidate.py`, and `robot_brain` applies it to any raw graph it loads
+(`--no-consolidate` to opt out). You can also run it on a saved file, without the bag or the detector:
+
+```bash
+python -m vlm_nav.consolidate --input ~/scene_graph/scene_graph.json --map ~/my_map.yaml \
+    --output ~/scene_graph/scene_graph.consolidated.json
+```
+
+What it does, and why (see CHANGELOG 0.3.0 for the measurements): walls are structure, not destinations; duplicates of one
+object are merged; two class names on one spot are resolved by evidence; a pile of identical things (20 stacked boxes)
+becomes ONE entry `{"kind": "group", "members": N, "size": metres, "z_min", "z_max"}` instead of `box_1 ... box_20`;
+each entry gets an importance (class weight x evidence x plausibility on the saved map) and weak ones are dropped, though
+every detected class keeps its best entry. `--min-importance`, `--max-objects`, `--conflict-radius`, `--no-groups` tune it;
+the per-class radii live in `CLASS_PROFILES` (unknown classes get sensible defaults).
+
+Check any graph against the simulator's real objects (`evaluation/hospital_ground_truth.json`):
+
+```bash
+python3 scripts/eval_scene_graph.py ~/scene_graph/scene_graph.json ~/scene_graph/scene_graph.consolidated.json
+```
+
+For a new recording, `build_scene_graph` also suppresses duplicate boxes per frame, counts distinct *views* (not boxes),
+ignores detections farther than `--max-object-range 8` m, saves `*.observations.json` and `*.raw.json` next to the output, and
+`--from-observations FILE` redoes the clustering + consolidation later without the bag. `--raw` skips consolidation.
+
 Positions are those of the **object surface facing the camera**, in the SLAM `map` frame. Big objects are clustered with a larger
 radius (`--class-radius forklift=2.0 wall=4.0 ...`) so one forklift is not reported as several instances.
 
@@ -300,6 +362,15 @@ Messages that start with a question word (which / what / where / who / why / how
 never acted on, even if the model replied with a command. `RELATIVE:(dx,dy)` is still accepted as an alternative to
 `MOVE:`.
 
+Names are forgiving: `vending_machine_2`, `the trash cans`, `beds` and `Trash Can 2` all resolve. If you name only a class
+("take me to the cart") the nearest instance is used even when the model answered with an arbitrary `cart_1`; if you name an
+instance ("go to cart_3") that instance wins over a different one the model wrote. A **group** ("group of 5, 7 m wide") is
+approached at its edge (stand-off + its radius), not its centre. With `/map` available, approach points are picked on known
+free cells with wall clearance, and a `MOVE` whose end point is inside a wall or unexplored space is shortened to the last free
+point (or refused with a message). `STOP` cancels the goal *and* publishes a zero `/cmd_vel`. A failing model call is reported
+and the session continues; `--wait-result` (automatic when stdin is not a terminal) waits for each goal and prints
+`[NAV] Result: ...`.
+
 **Choosing where to stop.** Before sending a `GOAL`, the brain asks Nav2's planner whether the approach point is
 reachable (`--max-plan-checks`). It tries the nearest instance first, at the stand-off distance and then 0.4 / 0.8 /
 1.6 m further out (an approach point 0.8 m from a surface can fall inside the obstacle's inflated zone). If nothing is
@@ -325,7 +396,7 @@ source /opt/ros/humble/setup.bash
 python3 -m pytest tests -q
 ```
 
-Pure-logic tests run anywhere. The ROS tests use a fake Nav2 and fake TF on their own DDS domain (87), so they
+About 230 tests, flake8 clean (`python3 -m flake8 vlm_nav scripts tests launch`). Pure-logic tests run anywhere. The ROS tests use a fake Nav2 and fake TF on their own DDS domain (87), so they
 never interfere with a running simulator.
 
 ---
@@ -348,4 +419,8 @@ never interfere with a running simulator.
 | Robot ends up wedged against a forklift's forks | The forks sit below the 2-D lidar's scan plane, so the map does not show them. Drive out with a short forward `cmd_vel`, or press Stop then Play in Isaac Sim |
 | Robot stuck against an object in the simulator | Press Stop then Play in Isaac Sim (robot returns to start), then restart SLAM (`mode:=localization` to keep the map) |
 | TF jitter on `odom -> base_link` | The sim publishes it and the EKF republishes it. They agree to 0.02 mm here; on a real robot set `publish_tf: false` in `config/ekf.yaml` |
+| Everything stalls / TF errors after pressing Stop then Play in Isaac Sim | Sim time restarted at 0 while SLAM/Nav2 kept the old clock: `scripts/pipeline.sh stop && scripts/pipeline.sh start` |
+| Goals into "unexplored" parts of the map succeed | The saved map was served with `free_thresh: 0.25` (unknown read as free). `mode:=static` / `localization` now serve a corrected copy: `ros2 topic echo /map --once --field data` must contain `-1` |
+| `check_map_alignment.py` says MISALIGNED | The simulator was not reset (Stop -> Play) or the map belongs to another start pose |
+| Qwen loads with "some parameters offloaded to the cpu" | Isaac Sim and the 3B model share one 16 GB GPU; it still works, only slower. Close other GPU programs, or run Isaac with `--no-window` |
 | `ModuleNotFoundError: numpy` ABI error | ROS 2 Humble needs NumPy 1.x; keep the pins in `requirements/constraints.txt` |
