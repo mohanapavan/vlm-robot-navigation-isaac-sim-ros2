@@ -42,7 +42,9 @@ Reading it honestly:
   covers only 34 of the 156.
 * 16 of the 18 vending-machine entries were on other things (doors, cabinets, empty floor) and had scores like the correct ones, so
   the detector's confidence cannot separate them. What did help: evidence, agreement between nearby detections, and the map
-  (an entry 1 m or more from every mapped obstacle was 85 % wrong).
+  (an entry 1 m or more from every mapped obstacle was 85 % wrong). Being in unexplored space was *not* informative on its
+  own (38 % real, like the average), so that penalty is a judgement call: without it the result is 56 entries at precision 0.57
+  instead of 46 at 0.61. `python3 scripts/analyze_scene_graph.py saved_state/hospital/scene_graph.json` prints these measurements.
 * The remaining errors need better *observations* (a second pass with the range-aware, deduplicated pipeline, changes 33 in the
   changelog), which was not done here because it needs a new recording and GroundingDINO.
 
@@ -134,6 +136,13 @@ Easy 5/5, then:
 | 7, 8 | ABORTED after 1.4 m, "collision ahead" then "failed to make progress" | the plan out of the chair_1 stand-off hugged the chair (0.51 m from the mapped cells); the chair's low base is below the 2-D lidar plane, so the robot was physically held; `SimpleProgressChecker` also counts only translation | Nav2 inflation 0.5 -> 0.9 m (plan 0.3 m longer, at least 0.77 m from every mapped obstacle), `PoseProgressChecker`, and stop points with at least 0.7 m of clearance are preferred |
 
 After those changes the whole benchmark was run again from a fresh simulator start: section 4.
+
+## 6. Raw data and how to redo it
+
+Everything above can be checked from the repository: the scene dump and the ground truth built from it, the raw results of the
+15 destinations (and of the first, partly failed attempt), and the outputs of the 5-command runs are in
+[`evaluation/`](../evaluation/README.md) with the commands that rebuild the analysis; `tests/test_ground_truth.py` checks that
+the committed ground truth is exactly what the committed dump gives and that the saved graph gives the numbers quoted here.
 
 ## Not verified
 

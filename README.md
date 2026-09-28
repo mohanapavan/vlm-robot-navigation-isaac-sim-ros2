@@ -78,10 +78,12 @@ vlm-robot-navigation-isaac-sim-ros2/          # a ROS 2 (ament_python) package n
 ├── config/    slam_toolbox_lidar.yaml  nav2_params_lidar.yaml  ekf.yaml  nav2_params_camera.yaml  map_view.rviz
 ├── scene/     slam.usd                            # Isaac Sim scene, now with a /clock publisher
 ├── scripts/   pipeline.sh  launch_isaac.sh  add_clock_graph.py  nav_smoke_test.py  check_map_alignment.py
-│              eval_scene_graph.py  plot_scene_graph.py  live_command_test.py  destination_benchmark.py
+│              eval_scene_graph.py  analyze_scene_graph.py  plot_scene_graph.py  plan_clearance.py
+│              dump_stage_prims.py  build_ground_truth.py  live_command_test.py  destination_benchmark.py
 ├── setup/     install_groundingdino.sh  install_qwen.sh
 ├── requirements/  perception.txt  brain.txt  dev.txt  constraints.txt
 ├── evaluation/  hospital_ground_truth.json    # real object boxes of the hospital scene, for scoring
+│                hospital_prims.json.gz  results/  README.md   # the scene dump it was built from, raw benchmark + live results
 ├── saved_state/hospital/                      # saved map + detected objects (raw and consolidated) for scene/slam.usd
 ├── tests/
 └── docs/commands.md
@@ -156,7 +158,7 @@ object, results and timeouts are reported, and the whole pipeline starts from la
 ```bash
 source /opt/ros/humble/setup.bash
 pip install -r requirements/dev.txt
-python3 -m pytest tests -q            # ~230 tests; ROS tests use their own DDS domain (87)
+python3 -m pytest tests -q            # ~240 tests; ROS tests use their own DDS domain (87)
 python3 scripts/nav_smoke_test.py     # end-to-end check on the *running* sim + SLAM + Nav2
 ~/qwen_env/bin/python scripts/live_command_test.py        # 5 typed commands through Qwen -> Nav2 -> the robot
 ~/qwen_env/bin/python scripts/destination_benchmark.py    # 5 easy / 5 medium / 5 hard destinations

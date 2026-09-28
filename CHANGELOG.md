@@ -40,8 +40,11 @@ Findings on the raw graph:
 
 * Detection score does not separate real from look-alike: the one true vending machine cluster scored like the 17 false ones
   (real vending machines: 2; entries: 18). What does help: evidence, agreement with nearby detections, and the map (an entry
-  1 m or more from every mapped obstacle was 85 % wrong; in unexplored space, 83 % wrong).
-* 67 of 149 entries had a different-class entry within 1 m: one object, several class names.
+  1 m or more from every mapped obstacle was 85 % wrong). An entry in unexplored space was real 38 % of the time (26
+  entries), the same as average, so that alone is weak evidence: the plausibility penalty for it is a judgement call, and
+  removing it changes the result only slightly (56 instead of 46 entries, precision 0.57 instead of 0.61).
+* 54 of the 125 non-wall entries had a different-class entry within 1 m (67 of 149 if walls count): one object, several class
+  names.
 * 45 of 149 had exactly the minimum (2) observations; the count was *boxes*, and GroundingDINO returns several overlapping boxes
   per object without suppression, so one frame could make "seen twice".
 * 24 entries were walls: structure, not a destination.
@@ -64,13 +67,22 @@ locations (`scene_graph.json`, raw, plus `scene_graph.consolidated.json`), with 
 files through. `docs/media/11_saved_map_hospital.png` shows the map. The warehouse pictures (`02_saved_map.png`,
 `03_scene_graph_on_map.png`) stay with the warehouse report, `docs/RESULTS.md`.
 
+### Evidence stored in the repository
+
+`evaluation/` now holds the scene dump (`hospital_prims.json.gz`), the ground truth built from it, the raw benchmark results
+(final run and the first partial attempt) and the live-test outputs, with a README. `scripts/dump_stage_prims.py` (runs inside
+Isaac Sim) and `scripts/build_ground_truth.py` make the ground truth; `scripts/analyze_scene_graph.py` prints the measurements
+behind the perception findings; `scripts/plan_clearance.py` is the probe behind the inflation change. While writing the
+analysis script two claims were corrected in these notes: 54 of the 125 non-wall entries (not 67 of 149) share a spot with
+another class, and unexplored space was not by itself a sign of a false entry.
+
 ### Tooling
 
 `scripts/launch_isaac.sh`, `scripts/isaac_open_scene.py`, `scripts/check_map_alignment.py`, `scripts/eval_scene_graph.py`,
 `scripts/plot_scene_graph.py` (the two new figures in `docs/media/`, 09 and 10; nothing existing was removed),
 `scripts/live_command_test.py` (5 typed commands through Qwen + Nav2 + the simulator),
 `scripts/destination_benchmark.py` (easy / medium / hard destinations), `pipeline.sh start` picks `static` when only the
-saved map exists. Tests: 139 -> 231; flake8 clean. Live results: `docs/EVALUATION.md` (5 typed commands 5/5; 5 easy + 5 medium + 5 hard destinations 15/15).
+saved map exists. Tests: 139 -> 238; flake8 clean. Live results: `docs/EVALUATION.md` (5 typed commands 5/5; 5 easy + 5 medium + 5 hard destinations 15/15).
 
 ## 0.2.0
 

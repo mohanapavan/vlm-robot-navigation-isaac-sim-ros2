@@ -396,7 +396,7 @@ source /opt/ros/humble/setup.bash
 python3 -m pytest tests -q
 ```
 
-About 230 tests, flake8 clean (`python3 -m flake8 vlm_nav scripts tests launch`). Pure-logic tests run anywhere. The ROS tests use a fake Nav2 and fake TF on their own DDS domain (87), so they
+About 240 tests, flake8 clean (`python3 -m flake8 vlm_nav scripts tests launch`). Pure-logic tests run anywhere. The ROS tests use a fake Nav2 and fake TF on their own DDS domain (87), so they
 never interfere with a running simulator.
 
 ---
