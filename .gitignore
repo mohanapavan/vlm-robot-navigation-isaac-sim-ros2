@@ -16,6 +16,10 @@ warehouse_bag/
 my_map.yaml
 my_map.pgm
 scene_graph.json
+# ...except the saved hospital results shipped with the repository
+!saved_state/hospital/my_map.yaml
+!saved_state/hospital/my_map.pgm
+!saved_state/hospital/scene_graph.json
 
 # OS
 .DS_Store

@@ -1,0 +1,1347 @@
+{
+  "version": 2,
+  "frame_id": "map",
+  "objects": [
+    {
+      "id": "bed_1",
+      "label": "bed",
+      "x": -3.902,
+      "y": 0.704,
+      "z": 0.513,
+      "count": 8,
+      "score": 0.375
+    },
+    {
+      "id": "bed_2",
+      "label": "bed",
+      "x": -14.518,
+      "y": 11.502,
+      "z": 0.684,
+      "count": 7,
+      "score": 0.516
+    },
+    {
+      "id": "bed_3",
+      "label": "bed",
+      "x": 7.813,
+      "y": 12.448,
+      "z": 1.228,
+      "count": 7,
+      "score": 0.505
+    },
+    {
+      "id": "bed_4",
+      "label": "bed",
+      "x": -15.645,
+      "y": 11.37,
+      "z": 0.677,
+      "count": 6,
+      "score": 0.456
+    },
+    {
+      "id": "bed_5",
+      "label": "bed",
+      "x": -6.543,
+      "y": 0.202,
+      "z": 0.551,
+      "count": 6,
+      "score": 0.355
+    },
+    {
+      "id": "bed_6",
+      "label": "bed",
+      "x": 4.899,
+      "y": 11.576,
+      "z": 0.815,
+      "count": 6,
+      "score": 0.37
+    },
+    {
+      "id": "bed_7",
+      "label": "bed",
+      "x": 6.845,
+      "y": 11.845,
+      "z": 0.996,
+      "count": 6,
+      "score": 0.378
+    },
+    {
+      "id": "bed_8",
+      "label": "bed",
+      "x": -13.367,
+      "y": 11.604,
+      "z": 0.752,
+      "count": 5,
+      "score": 0.504
+    },
+    {
+      "id": "bed_9",
+      "label": "bed",
+      "x": -4.966,
+      "y": 0.462,
+      "z": 0.562,
+      "count": 4,
+      "score": 0.451
+    },
+    {
+      "id": "bed_10",
+      "label": "bed",
+      "x": -7.78,
+      "y": 0.864,
+      "z": 0.618,
+      "count": 3,
+      "score": 0.339
+    },
+    {
+      "id": "bed_11",
+      "label": "bed",
+      "x": -31.589,
+      "y": 16.351,
+      "z": 1.358,
+      "count": 2,
+      "score": 0.463
+    },
+    {
+      "id": "bed_12",
+      "label": "bed",
+      "x": 1.076,
+      "y": 11.137,
+      "z": 0.899,
+      "count": 2,
+      "score": 0.349
+    },
+    {
+      "id": "bed_13",
+      "label": "bed",
+      "x": 3.749,
+      "y": 11.274,
+      "z": 0.994,
+      "count": 2,
+      "score": 0.484
+    },
+    {
+      "id": "bed_14",
+      "label": "bed",
+      "x": 11.311,
+      "y": 11.759,
+      "z": 1.272,
+      "count": 2,
+      "score": 0.343
+    },
+    {
+      "id": "cart_1",
+      "label": "cart",
+      "x": -14.263,
+      "y": 11.515,
+      "z": 0.71,
+      "count": 6,
+      "score": 0.326
+    },
+    {
+      "id": "cart_2",
+      "label": "cart",
+      "x": -10.23,
+      "y": 4.574,
+      "z": 0.453,
+      "count": 6,
+      "score": 0.509
+    },
+    {
+      "id": "cart_3",
+      "label": "cart",
+      "x": 13.732,
+      "y": 9.522,
+      "z": 0.555,
+      "count": 5,
+      "score": 0.526
+    },
+    {
+      "id": "cart_4",
+      "label": "cart",
+      "x": -28.615,
+      "y": 2.389,
+      "z": 0.609,
+      "count": 4,
+      "score": 0.625
+    },
+    {
+      "id": "cart_5",
+      "label": "cart",
+      "x": 11.037,
+      "y": 9.88,
+      "z": 0.55,
+      "count": 4,
+      "score": 0.437
+    },
+    {
+      "id": "cart_6",
+      "label": "cart",
+      "x": -4.396,
+      "y": 1.636,
+      "z": 0.326,
+      "count": 3,
+      "score": 0.493
+    },
+    {
+      "id": "cart_7",
+      "label": "cart",
+      "x": 12.497,
+      "y": 9.793,
+      "z": 0.536,
+      "count": 3,
+      "score": 0.438
+    },
+    {
+      "id": "cart_8",
+      "label": "cart",
+      "x": -31.933,
+      "y": 1.439,
+      "z": 0.677,
+      "count": 2,
+      "score": 0.403
+    },
+    {
+      "id": "cart_9",
+      "label": "cart",
+      "x": -30.941,
+      "y": 2.145,
+      "z": 0.567,
+      "count": 2,
+      "score": 0.352
+    },
+    {
+      "id": "cart_10",
+      "label": "cart",
+      "x": -27.278,
+      "y": 7.241,
+      "z": 0.438,
+      "count": 2,
+      "score": 0.532
+    },
+    {
+      "id": "cart_11",
+      "label": "cart",
+      "x": -20.397,
+      "y": 2.88,
+      "z": 0.377,
+      "count": 2,
+      "score": 0.407
+    },
+    {
+      "id": "cart_12",
+      "label": "cart",
+      "x": -8.446,
+      "y": 2.117,
+      "z": 0.227,
+      "count": 2,
+      "score": 0.406
+    },
+    {
+      "id": "chair_1",
+      "label": "chair",
+      "x": -8.003,
+      "y": 0.136,
+      "z": 0.474,
+      "count": 7,
+      "score": 0.336
+    },
+    {
+      "id": "chair_2",
+      "label": "chair",
+      "x": -15.201,
+      "y": 2.298,
+      "z": 0.527,
+      "count": 6,
+      "score": 0.771
+    },
+    {
+      "id": "chair_3",
+      "label": "chair",
+      "x": -30.152,
+      "y": 1.891,
+      "z": 0.638,
+      "count": 4,
+      "score": 0.478
+    },
+    {
+      "id": "chair_4",
+      "label": "chair",
+      "x": -9.234,
+      "y": 0.623,
+      "z": 0.58,
+      "count": 4,
+      "score": 0.345
+    },
+    {
+      "id": "chair_5",
+      "label": "chair",
+      "x": -26.923,
+      "y": 2.49,
+      "z": 0.633,
+      "count": 3,
+      "score": 0.444
+    },
+    {
+      "id": "chair_6",
+      "label": "chair",
+      "x": -29.052,
+      "y": 2.32,
+      "z": 0.651,
+      "count": 2,
+      "score": 0.311
+    },
+    {
+      "id": "chair_7",
+      "label": "chair",
+      "x": -28.016,
+      "y": 2.472,
+      "z": 0.678,
+      "count": 2,
+      "score": 0.377
+    },
+    {
+      "id": "chair_8",
+      "label": "chair",
+      "x": -13.957,
+      "y": 11.523,
+      "z": 0.436,
+      "count": 2,
+      "score": 0.32
+    },
+    {
+      "id": "chair_9",
+      "label": "chair",
+      "x": -6.806,
+      "y": -0.02,
+      "z": 0.455,
+      "count": 2,
+      "score": 0.382
+    },
+    {
+      "id": "chair_10",
+      "label": "chair",
+      "x": 3.75,
+      "y": 9.6,
+      "z": 0.56,
+      "count": 2,
+      "score": 0.322
+    },
+    {
+      "id": "desk_1",
+      "label": "desk",
+      "x": -11.284,
+      "y": -1.673,
+      "z": 0.473,
+      "count": 7,
+      "score": 0.559
+    },
+    {
+      "id": "desk_2",
+      "label": "desk",
+      "x": -10.068,
+      "y": -1.524,
+      "z": 0.469,
+      "count": 6,
+      "score": 0.694
+    },
+    {
+      "id": "desk_3",
+      "label": "desk",
+      "x": -32.702,
+      "y": 5.648,
+      "z": 0.481,
+      "count": 5,
+      "score": 0.746
+    },
+    {
+      "id": "desk_4",
+      "label": "desk",
+      "x": -31.183,
+      "y": 5.386,
+      "z": 0.496,
+      "count": 5,
+      "score": 0.721
+    },
+    {
+      "id": "desk_5",
+      "label": "desk",
+      "x": -29.809,
+      "y": 5.178,
+      "z": 0.51,
+      "count": 5,
+      "score": 0.627
+    },
+    {
+      "id": "desk_6",
+      "label": "desk",
+      "x": -15.488,
+      "y": 11.337,
+      "z": 0.428,
+      "count": 5,
+      "score": 0.416
+    },
+    {
+      "id": "desk_7",
+      "label": "desk",
+      "x": 21.98,
+      "y": -1.642,
+      "z": 0.516,
+      "count": 5,
+      "score": 0.582
+    },
+    {
+      "id": "desk_8",
+      "label": "desk",
+      "x": 22.736,
+      "y": -2.893,
+      "z": 0.501,
+      "count": 5,
+      "score": 0.521
+    },
+    {
+      "id": "desk_9",
+      "label": "desk",
+      "x": -28.594,
+      "y": 5.125,
+      "z": 0.521,
+      "count": 4,
+      "score": 0.528
+    },
+    {
+      "id": "desk_10",
+      "label": "desk",
+      "x": -22.847,
+      "y": 17.801,
+      "z": 0.488,
+      "count": 4,
+      "score": 0.763
+    },
+    {
+      "id": "desk_11",
+      "label": "desk",
+      "x": -8.862,
+      "y": -1.213,
+      "z": 0.487,
+      "count": 3,
+      "score": 0.4
+    },
+    {
+      "id": "desk_12",
+      "label": "desk",
+      "x": -8.382,
+      "y": 7.507,
+      "z": 0.547,
+      "count": 3,
+      "score": 0.649
+    },
+    {
+      "id": "desk_13",
+      "label": "desk",
+      "x": 1.664,
+      "y": 11.199,
+      "z": 0.065,
+      "count": 3,
+      "score": 0.457
+    },
+    {
+      "id": "desk_14",
+      "label": "desk",
+      "x": 3.477,
+      "y": 11.823,
+      "z": 0.586,
+      "count": 3,
+      "score": 0.305
+    },
+    {
+      "id": "desk_15",
+      "label": "desk",
+      "x": 13.187,
+      "y": -4.684,
+      "z": 0.569,
+      "count": 3,
+      "score": 0.736
+    },
+    {
+      "id": "desk_16",
+      "label": "desk",
+      "x": 17.903,
+      "y": 9.355,
+      "z": 0.521,
+      "count": 3,
+      "score": 0.42
+    },
+    {
+      "id": "desk_17",
+      "label": "desk",
+      "x": 19.626,
+      "y": 9.452,
+      "z": 0.519,
+      "count": 3,
+      "score": 0.477
+    },
+    {
+      "id": "desk_18",
+      "label": "desk",
+      "x": -27.486,
+      "y": 4.82,
+      "z": 0.523,
+      "count": 2,
+      "score": 0.468
+    },
+    {
+      "id": "desk_19",
+      "label": "desk",
+      "x": -26.243,
+      "y": 4.576,
+      "z": 0.523,
+      "count": 2,
+      "score": 0.533
+    },
+    {
+      "id": "desk_20",
+      "label": "desk",
+      "x": 13.831,
+      "y": -6.943,
+      "z": 0.579,
+      "count": 2,
+      "score": 0.712
+    },
+    {
+      "id": "desk_21",
+      "label": "desk",
+      "x": 20.18,
+      "y": 0.271,
+      "z": 0.535,
+      "count": 2,
+      "score": 0.363
+    },
+    {
+      "id": "desk_22",
+      "label": "desk",
+      "x": 20.832,
+      "y": -0.627,
+      "z": 0.515,
+      "count": 2,
+      "score": 0.377
+    },
+    {
+      "id": "desk_23",
+      "label": "desk",
+      "x": 24.222,
+      "y": -4.465,
+      "z": 0.547,
+      "count": 2,
+      "score": 0.671
+    },
+    {
+      "id": "door_1",
+      "label": "door",
+      "x": -12.761,
+      "y": 8.918,
+      "z": 1.121,
+      "count": 21,
+      "score": 0.362
+    },
+    {
+      "id": "door_2",
+      "label": "door",
+      "x": -32.398,
+      "y": 8.829,
+      "z": 1.165,
+      "count": 14,
+      "score": 0.365
+    },
+    {
+      "id": "door_3",
+      "label": "door",
+      "x": -30.277,
+      "y": 3.458,
+      "z": 0.906,
+      "count": 13,
+      "score": 0.381
+    },
+    {
+      "id": "door_4",
+      "label": "door",
+      "x": -3.548,
+      "y": 12.185,
+      "z": 1.194,
+      "count": 10,
+      "score": 0.415
+    },
+    {
+      "id": "door_5",
+      "label": "door",
+      "x": -1.804,
+      "y": 11.874,
+      "z": 1.143,
+      "count": 9,
+      "score": 0.498
+    },
+    {
+      "id": "door_6",
+      "label": "door",
+      "x": 12.862,
+      "y": 9.239,
+      "z": 0.95,
+      "count": 8,
+      "score": 0.424
+    },
+    {
+      "id": "door_7",
+      "label": "door",
+      "x": -28.474,
+      "y": 3.454,
+      "z": 0.887,
+      "count": 7,
+      "score": 0.368
+    },
+    {
+      "id": "door_8",
+      "label": "door",
+      "x": -21.622,
+      "y": 12.565,
+      "z": 1.15,
+      "count": 7,
+      "score": 0.656
+    },
+    {
+      "id": "door_9",
+      "label": "door",
+      "x": -18.845,
+      "y": 12.526,
+      "z": 1.146,
+      "count": 7,
+      "score": 0.467
+    },
+    {
+      "id": "door_10",
+      "label": "door",
+      "x": -9.73,
+      "y": 8.933,
+      "z": 1.15,
+      "count": 7,
+      "score": 0.434
+    },
+    {
+      "id": "door_11",
+      "label": "door",
+      "x": 18.016,
+      "y": 5.793,
+      "z": 1.064,
+      "count": 7,
+      "score": 0.556
+    },
+    {
+      "id": "door_12",
+      "label": "door",
+      "x": 19.499,
+      "y": 5.362,
+      "z": 1.109,
+      "count": 7,
+      "score": 0.59
+    },
+    {
+      "id": "door_13",
+      "label": "door",
+      "x": 20.834,
+      "y": 4.7,
+      "z": 1.146,
+      "count": 7,
+      "score": 0.575
+    },
+    {
+      "id": "door_14",
+      "label": "door",
+      "x": -31.808,
+      "y": 7.968,
+      "z": 1.35,
+      "count": 6,
+      "score": 0.333
+    },
+    {
+      "id": "door_15",
+      "label": "door",
+      "x": 2.772,
+      "y": 12.198,
+      "z": 1.208,
+      "count": 6,
+      "score": 0.379
+    },
+    {
+      "id": "door_16",
+      "label": "door",
+      "x": -17.493,
+      "y": 12.691,
+      "z": 1.225,
+      "count": 5,
+      "score": 0.532
+    },
+    {
+      "id": "door_17",
+      "label": "door",
+      "x": -10.747,
+      "y": 9.115,
+      "z": 1.125,
+      "count": 5,
+      "score": 0.377
+    },
+    {
+      "id": "door_18",
+      "label": "door",
+      "x": -0.448,
+      "y": 12.412,
+      "z": 1.256,
+      "count": 5,
+      "score": 0.556
+    },
+    {
+      "id": "door_19",
+      "label": "door",
+      "x": 22.095,
+      "y": 7.906,
+      "z": 1.244,
+      "count": 5,
+      "score": 0.538
+    },
+    {
+      "id": "door_20",
+      "label": "door",
+      "x": -7.012,
+      "y": 12.326,
+      "z": 1.302,
+      "count": 4,
+      "score": 0.382
+    },
+    {
+      "id": "door_21",
+      "label": "door",
+      "x": 0.246,
+      "y": 11.579,
+      "z": 1.101,
+      "count": 4,
+      "score": 0.368
+    },
+    {
+      "id": "door_22",
+      "label": "door",
+      "x": -33.555,
+      "y": 10.407,
+      "z": 1.219,
+      "count": 3,
+      "score": 0.367
+    },
+    {
+      "id": "door_23",
+      "label": "door",
+      "x": -2.498,
+      "y": 13.094,
+      "z": 1.951,
+      "count": 3,
+      "score": 0.318
+    },
+    {
+      "id": "door_24",
+      "label": "door",
+      "x": -2.204,
+      "y": 8.854,
+      "z": 1.206,
+      "count": 3,
+      "score": 0.387
+    },
+    {
+      "id": "door_25",
+      "label": "door",
+      "x": 1.394,
+      "y": 11.946,
+      "z": 1.149,
+      "count": 3,
+      "score": 0.314
+    },
+    {
+      "id": "door_26",
+      "label": "door",
+      "x": 16.799,
+      "y": 6.396,
+      "z": 1.054,
+      "count": 3,
+      "score": 0.608
+    },
+    {
+      "id": "door_27",
+      "label": "door",
+      "x": 18.892,
+      "y": 8.313,
+      "z": 1.116,
+      "count": 3,
+      "score": 0.471
+    },
+    {
+      "id": "door_28",
+      "label": "door",
+      "x": 20.121,
+      "y": 8.069,
+      "z": 1.136,
+      "count": 3,
+      "score": 0.567
+    },
+    {
+      "id": "door_29",
+      "label": "door",
+      "x": -26.257,
+      "y": 3.044,
+      "z": 0.763,
+      "count": 2,
+      "score": 0.399
+    },
+    {
+      "id": "door_30",
+      "label": "door",
+      "x": -20.207,
+      "y": 13.173,
+      "z": 1.309,
+      "count": 2,
+      "score": 0.516
+    },
+    {
+      "id": "door_31",
+      "label": "door",
+      "x": -15.812,
+      "y": 13.246,
+      "z": 1.469,
+      "count": 2,
+      "score": 0.62
+    },
+    {
+      "id": "door_32",
+      "label": "door",
+      "x": -14.979,
+      "y": 9.34,
+      "z": 1.06,
+      "count": 2,
+      "score": 0.429
+    },
+    {
+      "id": "door_33",
+      "label": "door",
+      "x": -6.279,
+      "y": -4.42,
+      "z": 1.527,
+      "count": 2,
+      "score": 0.467
+    },
+    {
+      "id": "door_34",
+      "label": "door",
+      "x": -5.895,
+      "y": 12.317,
+      "z": 1.284,
+      "count": 2,
+      "score": 0.317
+    },
+    {
+      "id": "door_35",
+      "label": "door",
+      "x": -4.746,
+      "y": 12.001,
+      "z": 1.152,
+      "count": 2,
+      "score": 0.36
+    },
+    {
+      "id": "door_36",
+      "label": "door",
+      "x": 10.808,
+      "y": 9.066,
+      "z": 0.969,
+      "count": 2,
+      "score": 0.413
+    },
+    {
+      "id": "door_37",
+      "label": "door",
+      "x": 18.148,
+      "y": -3.776,
+      "z": 1.063,
+      "count": 2,
+      "score": 0.417
+    },
+    {
+      "id": "door_38",
+      "label": "door",
+      "x": 19.095,
+      "y": -3.242,
+      "z": 1.025,
+      "count": 2,
+      "score": 0.438
+    },
+    {
+      "id": "trash can_1",
+      "label": "trash can",
+      "x": -31.406,
+      "y": 6.176,
+      "z": 0.468,
+      "count": 6,
+      "score": 0.825
+    },
+    {
+      "id": "trash can_2",
+      "label": "trash can",
+      "x": -29.587,
+      "y": 5.843,
+      "z": 0.492,
+      "count": 6,
+      "score": 0.766
+    },
+    {
+      "id": "trash can_3",
+      "label": "trash can",
+      "x": -32.737,
+      "y": 6.417,
+      "z": 0.437,
+      "count": 5,
+      "score": 0.841
+    },
+    {
+      "id": "trash can_4",
+      "label": "trash can",
+      "x": 18.279,
+      "y": 2.664,
+      "z": 0.472,
+      "count": 5,
+      "score": 0.751
+    },
+    {
+      "id": "trash can_5",
+      "label": "trash can",
+      "x": -27.903,
+      "y": 5.679,
+      "z": 0.508,
+      "count": 4,
+      "score": 0.764
+    },
+    {
+      "id": "trash can_6",
+      "label": "trash can",
+      "x": 19.28,
+      "y": 1.988,
+      "z": 0.448,
+      "count": 3,
+      "score": 0.776
+    },
+    {
+      "id": "trash can_7",
+      "label": "trash can",
+      "x": -4.936,
+      "y": -1.984,
+      "z": 1.228,
+      "count": 2,
+      "score": 0.685
+    },
+    {
+      "id": "trash can_8",
+      "label": "trash can",
+      "x": 16.05,
+      "y": 3.882,
+      "z": 0.48,
+      "count": 2,
+      "score": 0.762
+    },
+    {
+      "id": "trash can_9",
+      "label": "trash can",
+      "x": 17.298,
+      "y": 3.314,
+      "z": 0.492,
+      "count": 2,
+      "score": 0.709
+    },
+    {
+      "id": "vending machine_1",
+      "label": "vending machine",
+      "x": -32.49,
+      "y": 3.486,
+      "z": 0.924,
+      "count": 7,
+      "score": 0.457
+    },
+    {
+      "id": "vending machine_2",
+      "label": "vending machine",
+      "x": -32.24,
+      "y": 8.71,
+      "z": 1.257,
+      "count": 6,
+      "score": 0.466
+    },
+    {
+      "id": "vending machine_3",
+      "label": "vending machine",
+      "x": -15.571,
+      "y": 11.331,
+      "z": 1.015,
+      "count": 6,
+      "score": 0.517
+    },
+    {
+      "id": "vending machine_4",
+      "label": "vending machine",
+      "x": -28.273,
+      "y": 4.438,
+      "z": 0.763,
+      "count": 5,
+      "score": 0.426
+    },
+    {
+      "id": "vending machine_5",
+      "label": "vending machine",
+      "x": -6.198,
+      "y": -2.614,
+      "z": 0.643,
+      "count": 5,
+      "score": 0.485
+    },
+    {
+      "id": "vending machine_6",
+      "label": "vending machine",
+      "x": 7.723,
+      "y": 9.773,
+      "z": 0.573,
+      "count": 5,
+      "score": 0.492
+    },
+    {
+      "id": "vending machine_7",
+      "label": "vending machine",
+      "x": 11.351,
+      "y": 2.071,
+      "z": 1.041,
+      "count": 5,
+      "score": 0.643
+    },
+    {
+      "id": "vending machine_8",
+      "label": "vending machine",
+      "x": -5.095,
+      "y": -2.126,
+      "z": 0.551,
+      "count": 4,
+      "score": 0.57
+    },
+    {
+      "id": "vending machine_9",
+      "label": "vending machine",
+      "x": -26.632,
+      "y": 4.054,
+      "z": 0.759,
+      "count": 3,
+      "score": 0.418
+    },
+    {
+      "id": "vending machine_10",
+      "label": "vending machine",
+      "x": 22.391,
+      "y": -8.493,
+      "z": 1.544,
+      "count": 3,
+      "score": 0.48
+    },
+    {
+      "id": "vending machine_11",
+      "label": "vending machine",
+      "x": -30.402,
+      "y": 7.312,
+      "z": 1.141,
+      "count": 2,
+      "score": 0.511
+    },
+    {
+      "id": "vending machine_12",
+      "label": "vending machine",
+      "x": -30.291,
+      "y": 4.6,
+      "z": 0.765,
+      "count": 2,
+      "score": 0.408
+    },
+    {
+      "id": "vending machine_13",
+      "label": "vending machine",
+      "x": -29.827,
+      "y": 20.314,
+      "z": 0.822,
+      "count": 2,
+      "score": 0.399
+    },
+    {
+      "id": "vending machine_14",
+      "label": "vending machine",
+      "x": -10.377,
+      "y": 4.661,
+      "z": 0.365,
+      "count": 2,
+      "score": 0.354
+    },
+    {
+      "id": "vending machine_15",
+      "label": "vending machine",
+      "x": 12.308,
+      "y": 9.925,
+      "z": 0.624,
+      "count": 2,
+      "score": 0.383
+    },
+    {
+      "id": "vending machine_16",
+      "label": "vending machine",
+      "x": 13.532,
+      "y": -0.515,
+      "z": 1.263,
+      "count": 2,
+      "score": 0.609
+    },
+    {
+      "id": "vending machine_17",
+      "label": "vending machine",
+      "x": 18.616,
+      "y": -3.532,
+      "z": 1.107,
+      "count": 2,
+      "score": 0.56
+    },
+    {
+      "id": "vending machine_18",
+      "label": "vending machine",
+      "x": 24.208,
+      "y": -12.056,
+      "z": 1.862,
+      "count": 2,
+      "score": 0.567
+    },
+    {
+      "id": "wall_1",
+      "label": "wall",
+      "x": 19.258,
+      "y": 5.348,
+      "z": 1.442,
+      "count": 25,
+      "score": 0.423
+    },
+    {
+      "id": "wall_2",
+      "label": "wall",
+      "x": -15.77,
+      "y": 8.108,
+      "z": 1.417,
+      "count": 19,
+      "score": 0.396
+    },
+    {
+      "id": "wall_3",
+      "label": "wall",
+      "x": -31.529,
+      "y": 3.137,
+      "z": 1.544,
+      "count": 18,
+      "score": 0.374
+    },
+    {
+      "id": "wall_4",
+      "label": "wall",
+      "x": -22.061,
+      "y": 6.927,
+      "z": 1.86,
+      "count": 18,
+      "score": 0.377
+    },
+    {
+      "id": "wall_5",
+      "label": "wall",
+      "x": -11.684,
+      "y": -0.434,
+      "z": 1.156,
+      "count": 17,
+      "score": 0.434
+    },
+    {
+      "id": "wall_6",
+      "label": "wall",
+      "x": -10.056,
+      "y": 6.253,
+      "z": 1.556,
+      "count": 12,
+      "score": 0.444
+    },
+    {
+      "id": "wall_7",
+      "label": "wall",
+      "x": -4.466,
+      "y": 12.811,
+      "z": 1.744,
+      "count": 12,
+      "score": 0.374
+    },
+    {
+      "id": "wall_8",
+      "label": "wall",
+      "x": 12.216,
+      "y": 3.295,
+      "z": 1.527,
+      "count": 12,
+      "score": 0.374
+    },
+    {
+      "id": "wall_9",
+      "label": "wall",
+      "x": -27.532,
+      "y": 2.378,
+      "z": 1.564,
+      "count": 11,
+      "score": 0.356
+    },
+    {
+      "id": "wall_10",
+      "label": "wall",
+      "x": -23.125,
+      "y": 13.502,
+      "z": 1.413,
+      "count": 11,
+      "score": 0.351
+    },
+    {
+      "id": "wall_11",
+      "label": "wall",
+      "x": -10.009,
+      "y": -4.081,
+      "z": 1.546,
+      "count": 10,
+      "score": 0.377
+    },
+    {
+      "id": "wall_12",
+      "label": "wall",
+      "x": 0.869,
+      "y": 12.838,
+      "z": 1.292,
+      "count": 8,
+      "score": 0.393
+    },
+    {
+      "id": "wall_13",
+      "label": "wall",
+      "x": -4.424,
+      "y": 8.493,
+      "z": 0.707,
+      "count": 7,
+      "score": 0.406
+    },
+    {
+      "id": "wall_14",
+      "label": "wall",
+      "x": 19.082,
+      "y": 0.818,
+      "z": 1.958,
+      "count": 7,
+      "score": 0.371
+    },
+    {
+      "id": "wall_15",
+      "label": "wall",
+      "x": -18.526,
+      "y": 13.259,
+      "z": 1.323,
+      "count": 5,
+      "score": 0.311
+    },
+    {
+      "id": "wall_16",
+      "label": "wall",
+      "x": -4.439,
+      "y": 0.076,
+      "z": 0.801,
+      "count": 5,
+      "score": 0.457
+    },
+    {
+      "id": "wall_17",
+      "label": "wall",
+      "x": 8.445,
+      "y": 11.838,
+      "z": 1.252,
+      "count": 5,
+      "score": 0.32
+    },
+    {
+      "id": "wall_18",
+      "label": "wall",
+      "x": -13.871,
+      "y": 12.415,
+      "z": 1.342,
+      "count": 4,
+      "score": 0.389
+    },
+    {
+      "id": "wall_19",
+      "label": "wall",
+      "x": 1.334,
+      "y": 8.437,
+      "z": 1.147,
+      "count": 4,
+      "score": 0.324
+    },
+    {
+      "id": "wall_20",
+      "label": "wall",
+      "x": 13.124,
+      "y": 10.838,
+      "z": 1.574,
+      "count": 3,
+      "score": 0.317
+    },
+    {
+      "id": "wall_21",
+      "label": "wall",
+      "x": 17.289,
+      "y": -4.777,
+      "z": 1.499,
+      "count": 3,
+      "score": 0.387
+    },
+    {
+      "id": "wall_22",
+      "label": "wall",
+      "x": -29.396,
+      "y": 24.689,
+      "z": 1.539,
+      "count": 2,
+      "score": 0.331
+    },
+    {
+      "id": "wall_23",
+      "label": "wall",
+      "x": 7.016,
+      "y": 0.376,
+      "z": 1.275,
+      "count": 2,
+      "score": 0.319
+    },
+    {
+      "id": "wall_24",
+      "label": "wall",
+      "x": 11.91,
+      "y": -6.53,
+      "z": 1.898,
+      "count": 2,
+      "score": 0.425
+    },
+    {
+      "id": "wheelchair_1",
+      "label": "wheelchair",
+      "x": -11.49,
+      "y": 4.164,
+      "z": 0.599,
+      "count": 2,
+      "score": 0.56
+    }
+  ]
+}
