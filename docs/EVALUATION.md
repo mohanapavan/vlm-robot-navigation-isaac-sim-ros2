@@ -4,6 +4,11 @@ Everything here was measured on the running stack: Isaac Sim 6.0 (`scene/slam.us
 detections from the project backup (nothing re-recorded), Nav2, and Qwen2.5-VL-3B on one RTX 5080. The simulator ran at
 roughly 0.25 to 0.7 times real time, so wall-clock durations are longer than the simulated ones.
 
+[![Hospital demo](media/hospital_demo.gif)](media/hospital_demo.mp4)
+
+The same results as a Word report: [Hospital_VLM_Navigation_Report.docx](Hospital_VLM_Navigation_Report.docx). The demo above was
+recorded with `scripts/record_demo.py` (typed commands through Qwen, the robot camera, the trail on the saved map).
+
 ![The saved hospital map](media/11_saved_map_hospital.png)
 
 The map, the raw detections and the consolidated graph used below are in `saved_state/hospital/`.

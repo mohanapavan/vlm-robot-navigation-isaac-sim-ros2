@@ -80,6 +80,7 @@ vlm-robot-navigation-isaac-sim-ros2/          # a ROS 2 (ament_python) package n
 ├── scripts/   pipeline.sh  launch_isaac.sh  add_clock_graph.py  nav_smoke_test.py  check_map_alignment.py
 │              eval_scene_graph.py  analyze_scene_graph.py  plot_scene_graph.py  plan_clearance.py
 │              dump_stage_prims.py  build_ground_truth.py  live_command_test.py  destination_benchmark.py
+│              record_demo.py  build_report.py
 ├── setup/     install_groundingdino.sh  install_qwen.sh
 ├── requirements/  perception.txt  brain.txt  dev.txt  constraints.txt
 ├── evaluation/  hospital_ground_truth.json    # real object boxes of the hospital scene, for scoring
@@ -135,6 +136,12 @@ the forklift, the saved map and scene graph, how close the robot gets, and every
 Measured on the live hospital scene (details in **[docs/EVALUATION.md](docs/EVALUATION.md)**): 5 typed commands 5/5; 5 easy +
 5 medium + 5 hard destinations (3 m to 56 m) 15/15, average goal error 0.22 m; 12 of the 15 entries the robot drove to are real
 objects (the saved detections, consolidated from 149 to 46 entries, are 61 % precise and cover 18 % of the real objects).
+
+[![Nova drives to the wheelchair in the hospital: typed command, Qwen's reply, camera and map](docs/media/hospital_demo.gif)](docs/media/hospital_demo.mp4)
+
+*Hospital demo (real stack, video plays 5x faster than the simulation): "what do you see?", "go to the wheelchair", "go to the
+spaceship". Left: the robot's camera; right: its position and trail on the saved map. A full report is in
+[docs/Hospital_VLM_Navigation_Report.docx](docs/Hospital_VLM_Navigation_Report.docx).*
 
 ![The saved hospital map](docs/media/11_saved_map_hospital.png)
 

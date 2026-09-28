@@ -45,7 +45,10 @@ python3 scripts/check_map_alignment.py                       # does the live lid
 python3 scripts/nav_smoke_test.py                            # relative move / named goal / STOP / goal after STOP (no LLM)
 ~/qwen_env/bin/python scripts/live_command_test.py           # 5 typed commands through Qwen -> Nav2 -> the robot
 ~/qwen_env/bin/python scripts/destination_benchmark.py       # 5 easy + 5 medium + 5 hard destinations, full table
+~/qwen_env/bin/python scripts/record_demo.py --command "what do you see?" --command "go to the wheelchair"   # video + GIF
 ```
+
+The Word report is rebuilt from the stored results with `pip install -r requirements/report.txt && python3 scripts/build_report.py`.
 
 ---
 

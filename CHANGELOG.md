@@ -60,6 +60,12 @@ Changes:
 | 32 | A group is approached at its edge (stand-off + its radius), not its centre | `test_a_group_is_approached_...` |
 | 33 | *For future recordings* (needs GroundingDINO + a bag; not run here): per-frame NMS within and across classes, image-filling / sliver boxes dropped (`detector.filter_detections`); evidence counted in distinct camera **views**; far observations (stereo error grows with range squared) weigh less and are ignored beyond `--max-object-range 8`; raw observations saved (`*.observations.json`) so `--from-observations` re-clusters without the bag; the raw graph is kept next to the consolidated one | `test_detector_filter.py`, `test_scene_graph.py`, `test_build_scene_graph.py` |
 
+### Demo and report
+
+`docs/media/hospital_demo.gif` / `.mp4` (recorded on the real stack by `scripts/record_demo.py`: four typed commands, the robot camera
+and its trail on the saved map) and `docs/Hospital_VLM_Navigation_Report.docx` (built by `scripts/build_report.py` from the stored
+results; needs `python-docx`, see `requirements/report.txt`). The original warehouse report, GIF and video are unchanged.
+
 ### Saved results in the repository
 
 `saved_state/hospital/` now holds the hospital scene's saved map (`my_map.yaml`, `my_map.pgm`) and the detected objects with their
@@ -82,7 +88,7 @@ another class, and unexplored space was not by itself a sign of a false entry.
 `scripts/plot_scene_graph.py` (the two new figures in `docs/media/`, 09 and 10; nothing existing was removed),
 `scripts/live_command_test.py` (5 typed commands through Qwen + Nav2 + the simulator),
 `scripts/destination_benchmark.py` (easy / medium / hard destinations), `pipeline.sh start` picks `static` when only the
-saved map exists. Tests: 139 -> 238; flake8 clean. Live results: `docs/EVALUATION.md` (5 typed commands 5/5; 5 easy + 5 medium + 5 hard destinations 15/15).
+saved map exists. Tests: 139 -> 239 (one of them, the Word-report test, needs python-docx and skips itself without it); flake8 clean. Live results: `docs/EVALUATION.md` (5 typed commands 5/5; 5 easy + 5 medium + 5 hard destinations 15/15).
 
 ## 0.2.0
 
