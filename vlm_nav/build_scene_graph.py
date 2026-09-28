@@ -5,7 +5,10 @@ For every sampled left camera frame:
   2. run GroundingDINO,
   3. back-project each box centre with its depth into the camera optical frame,
   4. transform that point into the map frame with the bag's own /tf at the frame's stamp,
-then cluster the per-frame observations into distinct object instances.
+then cluster the per-frame observations into distinct object instances and consolidate those (consolidate.py: merge
+duplicates, resolve class conflicts, group piles, rank by importance) into the final graph. The raw observations and the
+un-consolidated graph are saved next to the output, so all of that can be redone with `--from-observations` without the bag
+or the detector.
 
 Record the bag with (see docs/commands.md):
   /tf /tf_static  left+right image_raw  left+right camera_info   (and --use-sim-time)
@@ -18,7 +21,9 @@ import sys
 from .geometry import backproject, transform_point, transform_to_matrix
 from .image_utils import image_msg_to_rgb
 from .pairing import StereoPairer, stamp_ns
-from .scene_graph import DEFAULT_CLASS_RADIUS, DEFAULT_CLASSES, Observation, SceneGraph, cluster_observations
+from .detector import filter_detections
+from .scene_graph import (DEFAULT_CLASS_RADIUS, DEFAULT_CLASSES, Observation, SceneGraph, cluster_observations,
+                          dump_observations, load_observations)
 from .stereo import StereoDepth, baseline_from_projection, box_depth
 
 log = logging.getLogger('vlm_nav.build_scene_graph')
@@ -91,7 +96,8 @@ class SceneMapper:
     """Turns a stereo pair + detector + TF into map-frame Observations."""
 
     def __init__(self, detector, tf_buffer, left_info, right_info, map_frame='map',
-                 baseline=None, stereo_scale=0.5, min_depth=0.3, max_depth=15.0, camera_frame=None):
+                 baseline=None, stereo_scale=0.5, min_depth=0.3, max_depth=15.0, camera_frame=None,
+                 max_object_range=8.0):
         self.detector = detector
         self.camera_frame = camera_frame
         self.tf = tf_buffer
@@ -103,7 +109,9 @@ class SceneMapper:
         self.baseline = baseline
         self.stereo_scale, self.min_depth, self.max_depth = stereo_scale, min_depth, max_depth
         self._stereo = None
-        self.skipped = {'no_tf': 0, 'no_depth': 0}
+        self.max_object_range = max_object_range      # stereo depth error grows with range squared: ignore far objects
+        self.frames = 0
+        self.skipped = {'no_tf': 0, 'no_depth': 0, 'too_far': 0, 'duplicate_boxes': 0}
 
     def _stereo_for(self, width):
         if self._stereo is None:
@@ -133,7 +141,10 @@ class SceneMapper:
             log.warning('No %s <- %s transform at stamp %.3f: %s', self.map_frame, frame, stamp * 1e-9, e)
             return []
 
-        detections = self.detector.detect(left)
+        self.frames += 1
+        raw = self.detector.detect(left)
+        detections = filter_detections(raw, left.shape)
+        self.skipped['duplicate_boxes'] += len(raw) - len(detections)
         if not detections:
             return []
         depth = self._stereo_for(left.shape[1]).compute(left, right)
@@ -148,9 +159,13 @@ class SceneMapper:
             if d is None:
                 self.skipped['no_depth'] += 1
                 continue
+            if d > self.max_object_range:
+                self.skipped['too_far'] += 1
+                continue
             u, v = (det.box[0] + det.box[2]) / 2.0, (det.box[1] + det.box[3]) / 2.0
             p_map = transform_point(cam_to_map, backproject(u, v, d, fx, fy, cx, cy))
-            observations.append(Observation(det.label, det.score, float(p_map[0]), float(p_map[1]), float(p_map[2])))
+            observations.append(Observation(det.label, det.score, float(p_map[0]), float(p_map[1]), float(p_map[2]),
+                                            frame=self.frames, range=float(d)))
             log.info('  %-10s score=%.2f depth=%.2fm -> map (%.2f, %.2f, %.2f)',
                      det.label, det.score, d, *p_map)
         return observations
@@ -210,7 +225,19 @@ def parse_args(argv=None):
                    default=[f'{k}={v}' for k, v in DEFAULT_CLASS_RADIUS.items()],
                    help='per-class clustering radius overriding --cluster-radius (big objects need more); '
                         'pass with no values to disable')
-    p.add_argument('--min-observations', type=int, default=2, help='drop objects seen fewer times than this')
+    p.add_argument('--min-observations', type=int, default=2,
+                   help='drop objects seen in fewer distinct camera frames than this')
+    p.add_argument('--max-object-range', type=float, default=8.0,
+                   help='ignore detections whose depth is farther than this (m): far stereo depth is unreliable')
+    p.add_argument('--from-observations', default=None, metavar='FILE',
+                   help='skip the bag and the detector: re-cluster observations saved by an earlier run')
+    p.add_argument('--observations-out', default=None, metavar='FILE',
+                   help='where to save the raw observations (default: <output>.observations.json)')
+    p.add_argument('--raw', action='store_true', help='skip consolidation: write the plain per-class clusters')
+    p.add_argument('--map', default=os.path.join(home, 'my_map.yaml'),
+                   help='saved Nav2 map used to judge whether a detection is plausible (ignored if missing)')
+    p.add_argument('--min-importance', type=float, default=None, help='consolidation cut-off (default: consolidate.py)')
+    p.add_argument('--max-objects', type=int, default=None, help='most entries to keep (default: consolidate.py)')
     p.add_argument('--device', default=None, help="'cuda' or 'cpu' (default: auto)")
     return p.parse_args(argv)
 
@@ -219,30 +246,63 @@ def main(argv=None, detector=None):
     """Entry point. `detector` (anything with .detect(rgb) -> [Detection]) can be injected for testing."""
     args = parse_args(argv)
     logging.basicConfig(level=logging.INFO, format='%(message)s')
+    stem = os.path.splitext(args.output)[0]
+    obs_path = args.observations_out or stem + '.observations.json'
+    os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
 
-    if detector is None:
-        from .detector import GroundingDinoDetector
-        detector = GroundingDinoDetector(args.config, args.weights, args.classes, args.box_threshold,
-                                         args.text_threshold, args.device)
-    log.info('Reading TF and camera calibration from %s...', args.bag)
-    tf_buffer, left_info, right_info = load_tf_and_info(args.bag, args.left_info_topic, args.right_info_topic)
-    mapper = SceneMapper(detector, tf_buffer, left_info, right_info, args.map_frame, args.baseline,
-                         args.stereo_scale, args.min_depth, args.max_depth, args.camera_frame)
+    skipped_note = ''
+    if args.from_observations:
+        observations = load_observations(args.from_observations)
+        frames = unmatched = 0
+        log.info('Loaded %d observations from %s (no bag, no detector)', len(observations), args.from_observations)
+    else:
+        if detector is None:
+            from .detector import GroundingDinoDetector
+            detector = GroundingDinoDetector(args.config, args.weights, args.classes, args.box_threshold,
+                                             args.text_threshold, args.device)
+        log.info('Reading TF and camera calibration from %s...', args.bag)
+        tf_buffer, left_info, right_info = load_tf_and_info(args.bag, args.left_info_topic, args.right_info_topic)
+        mapper = SceneMapper(detector, tf_buffer, left_info, right_info, args.map_frame, args.baseline,
+                             args.stereo_scale, args.min_depth, args.max_depth, args.camera_frame,
+                             args.max_object_range)
 
-    log.info('Processing images...')
-    observations, frames, unmatched = build_observations(
-        args.bag, mapper, args.left_topic, args.right_topic, args.sample_period, args.pair_tolerance)
+        log.info('Processing images...')
+        observations, frames, unmatched = build_observations(
+            args.bag, mapper, args.left_topic, args.right_topic, args.sample_period, args.pair_tolerance)
+        dump_observations(observations, obs_path, args.map_frame)
+        skipped_note = f' (unpaired {unmatched}, skipped: {mapper.skipped})'
+        log.info('Saved the raw observations to %s', obs_path)
 
     class_radius = {k: float(v) for k, v in (item.split('=') for item in args.class_radius)}
-    objects = cluster_observations(observations, args.cluster_radius, args.min_observations, class_radius)
-    graph = SceneGraph(objects, args.map_frame)
-    os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
-    graph.save(args.output)
+    clusters = cluster_observations(observations, args.cluster_radius, args.min_observations, class_radius)
+    log.info('\nProcessed %d stereo frames%s, %d observations -> %d raw clusters',
+             frames, skipped_note, len(observations), len(clusters))
 
-    log.info('\nProcessed %d stereo frames (%d unpaired, skipped: %s), %d observations -> %d objects',
-             frames, unmatched, mapper.skipped, len(observations), len(objects))
+    if args.raw:
+        objects = clusters
+    else:
+        from .consolidate import Settings, consolidate
+        grid = None
+        if args.map and os.path.isfile(args.map):
+            from .map_grid import MapGrid
+            grid = MapGrid.from_yaml(args.map)
+        else:
+            log.warning('No saved map at %s: plausibility is judged without it.', args.map)
+        settings = Settings()
+        if args.min_importance is not None:
+            settings.min_importance = args.min_importance
+        if args.max_objects is not None:
+            settings.max_objects = args.max_objects
+        SceneGraph(clusters, args.map_frame, consolidated=False).save(stem + '.raw.json')
+        objects, report = consolidate(clusters, grid, settings)
+        log.info('Consolidation:\n%s', report.summary())
+
+    graph = SceneGraph(objects, args.map_frame, consolidated=not args.raw)
+    graph.save(args.output)
+    log.info('-> %d objects', len(objects))
     for o in objects:
-        log.info('  %-14s (%.2f, %.2f, %.2f)  seen %d x, mean score %.2f', o.id, o.x, o.y, o.z, o.count, o.score)
+        what = f'group of {o.members}, {o.size:.1f} m wide' if o.kind == 'group' else 'single object'
+        log.info('  %-16s (%.2f, %.2f, %.2f)  %s; seen %d x, mean score %.2f', o.id, o.x, o.y, o.z, what, o.count, o.score)
     log.info('Wrote %s', args.output)
     if not objects:
         log.error('No objects found. Check that the bag has /tf with the %s frame, matching stereo stamps, '

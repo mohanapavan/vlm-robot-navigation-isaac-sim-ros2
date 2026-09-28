@@ -4,6 +4,7 @@ Run (Nav2 + the SLAM pipeline must already be up, see docs/commands.md):
     ros2 run vlm_nav robot_brain --scene-graph ~/scene_graph/scene_graph.json --ros-args -p use_sim_time:=true
 """
 import argparse
+import math
 import os
 import sys
 import threading
@@ -16,15 +17,36 @@ from nav2_msgs.action import ComputePathToPose, NavigateToPose
 from PIL import Image as PILImage
 from rclpy.action import ActionClient
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from geometry_msgs.msg import Twist
+from nav_msgs.msg import OccupancyGrid
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import Image as RosImage
 
 from .command_parser import (build_question_prompt, build_system_prompt, first_command_line, is_question,
-                             needs_vision, parse_response)
-from .geometry import quat_to_yaw, rotate_relative_offset, standoff_point, yaw_facing, yaw_to_quat
+                             mentioned_objects, needs_vision, parse_response, reconcile_goal)
+from .geometry import quat_to_yaw, ring_points, rotate_relative_offset, standoff_point, yaw_facing, yaw_to_quat
 from .image_utils import image_msg_to_rgb
+from .map_grid import FREE, MapGrid
 from .scene_graph import SceneGraph
+
+
+def load_graph(path, consolidate_raw=True, map_yaml=None, output_fn=print):
+    """Load a scene graph; a raw one (one entry per detection cluster) is consolidated first so the model is told about
+    a few trustworthy objects, not hundreds of fragments (see consolidate.py)."""
+    graph = SceneGraph.load(path)
+    if graph.dropped_on_load:
+        output_fn(f'Warning: skipped {graph.dropped_on_load} malformed object(s) in {path}')
+    if graph.consolidated or not consolidate_raw:
+        return graph
+    from .consolidate import consolidate
+    grid = None
+    if map_yaml and os.path.isfile(os.path.expanduser(map_yaml)):
+        grid = MapGrid.from_yaml(os.path.expanduser(map_yaml))
+    objects, report = consolidate(graph.objects, grid)
+    output_fn(f'{path} is a raw scene graph; consolidated it:\n{report.summary()}')
+    return SceneGraph(objects, graph.frame_id, consolidated=True)
+
 
 _STATUS_NAMES = {
     GoalStatus.STATUS_SUCCEEDED: 'SUCCEEDED',
@@ -36,7 +58,8 @@ _STATUS_NAMES = {
 class RobotBrain(Node):
     def __init__(self, scene_graph, standoff=0.8, map_frame='map', base_frame='base_link',
                  image_topic='/front_stereo_camera/left/image_raw', action_name='/navigate_to_pose',
-                 server_timeout=5.0, max_plan_checks=12):
+                 server_timeout=5.0, max_plan_checks=12, clearance=0.45, map_topic='/map', cmd_vel_topic='/cmd_vel',
+                 preferred_clearance=0.7):
         super().__init__('robot_brain')
         self.graph = scene_graph
         self.standoff = standoff
@@ -44,6 +67,9 @@ class RobotBrain(Node):
         self.base_frame = base_frame
         self.server_timeout = server_timeout
         self.max_plan_checks = max_plan_checks
+        self.clearance = clearance        # metres a goal must keep from any occupied map cell (robot radius + margin)
+        self.preferred_clearance = max(preferred_clearance, clearance)   # tried first: room to turn and leave
+        self.grid = None                  # MapGrid of the latest /map, or None (then goals are only checked by Nav2)
 
         # Written by the spin thread, read by the chat (main) thread.
         self._lock = threading.RLock()
@@ -53,6 +79,8 @@ class RobotBrain(Node):
         self._goal_seq = 0          # bumped on every send/cancel so in-flight goals can be recognised as stale
         self.last_result = None
         self.result_event = threading.Event()
+        self.goals_sent = 0
+        self.last_goal = None       # (x, y, yaw) of the most recent goal handed to Nav2
 
         # Robot pose comes from the map -> base_link TF (SLAM), not from odometry.
         self.tf_buffer = tf2_ros.Buffer()
@@ -60,6 +88,12 @@ class RobotBrain(Node):
         # Isaac Sim publishes sensors best-effort; a default (reliable) subscription would get nothing.
         self.image_sub = self.create_subscription(
             RosImage, image_topic, self.image_callback, qos_profile_sensor_data)
+        # /map is latched (transient local) by map_server / slam_toolbox; the saved map is what Nav2 plans on too.
+        self.map_sub = self.create_subscription(
+            OccupancyGrid, map_topic, self._on_map,
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, durability=DurabilityPolicy.TRANSIENT_LOCAL))
+        # STOP also zeroes the wheels directly: it works even if Nav2 is wedged and skips the cancel round trip.
+        self.cmd_vel_pub = self.create_publisher(Twist, cmd_vel_topic, 10)
         self.nav_client = ActionClient(self, NavigateToPose, action_name)
         self.plan_client = ActionClient(self, ComputePathToPose, '/compute_path_to_pose')
 
@@ -68,6 +102,15 @@ class RobotBrain(Node):
     def image_callback(self, msg):
         with self._lock:
             self._latest_image_msg = msg
+
+    def _on_map(self, msg):
+        try:
+            grid = MapGrid.from_occupancy_grid(msg)
+        except ValueError as e:
+            self.get_logger().warn(f'Ignoring unusable /map: {e}')
+            return
+        with self._lock:
+            self.grid = grid
 
     def get_latest_image(self, max_side=1024):
         """Latest camera frame as a PIL image (downscaled for the VLM), or None."""
@@ -127,13 +170,23 @@ class RobotBrain(Node):
             seq = self._goal_seq
             self.last_result = None
             self.result_event.clear()
+            self.goals_sent += 1
+            self.last_goal = (float(x), float(y), float(yaw))
         future = self.nav_client.send_goal_async(goal_msg)
         future.add_done_callback(lambda f, s=seq: self._goal_response_callback(f, s))
         self.get_logger().info(f'Sending goal: ({x:.2f}, {y:.2f}) facing {yaw:.2f} rad in {self.map_frame}')
         return True
 
     def _goal_response_callback(self, future, seq):
-        handle = future.result()
+        try:
+            handle = future.result()
+        except Exception as e:      # the action server went away between the request and its answer
+            self.get_logger().error(f'Goal request failed: {e}')
+            with self._lock:
+                if seq == self._goal_seq:
+                    self.last_result = 'ERROR'
+                    self.result_event.set()
+            return
         with self._lock:
             stale = seq != self._goal_seq
         if not handle.accepted:
@@ -192,7 +245,27 @@ class RobotBrain(Node):
         if not self._wait(result, 8.0):
             return True
         res = result.result()
-        return res.status == GoalStatus.STATUS_SUCCEEDED and len(res.result.path.poses) > 1
+        return res.status == GoalStatus.STATUS_SUCCEEDED and len(res.result.path.poses) >= 1
+
+    def approach_points(self, obj, robot_xy, distance):
+        """Stop points `distance` m from the object (measured from its edge for a group), best first.
+
+        Without a map: just the point on the line from the object to the robot. With the map: also points around
+        the object, keeping only known free cells with clearance from walls and a clear line to the object, so the
+        planner is not asked about spots inside walls, behind them, or in unexplored space.
+        """
+        distance += obj.radius
+        base = standoff_point(obj.xy, robot_xy, distance)
+        with self._lock:
+            grid = self.grid
+        if grid is None or base == tuple(robot_xy):
+            return [base]           # (already close enough: the robot only turns to face the object)
+        usable = [p for p in ring_points(obj.xy, robot_xy, distance)
+                  if grid.is_free(p[0], p[1], self.clearance) and grid.segment_is_free(p, obj.xy, ignore_end=0.4)]
+        roomy = [p for p in usable if grid.is_free(p[0], p[1], self.preferred_clearance)]
+        # Roomy stop points first (the robot can turn and leave without touching anything the lidar cannot see),
+        # then the merely legal ones.
+        return (roomy[:3] + [p for p in usable if p not in roomy][:2])[:4]
 
     def choose_approach(self, name, robot_xy):
         """Pick (object, goal_x, goal_y) for a named goal, or None if Nav2 finds no path to any approach point.
@@ -207,19 +280,22 @@ class RobotBrain(Node):
         checked = 0
         for obj in candidates:
             for extra in (0.0, 0.4, 0.8, 1.6):
-                gx, gy = standoff_point(obj.xy, robot_xy, self.standoff + extra)
-                if self.max_plan_checks <= 0:          # probing disabled: nearest instance at the plain stand-off
-                    return obj, gx, gy
-                if checked >= self.max_plan_checks:
-                    return None
-                checked += 1
-                if self.has_path(gx, gy):
-                    return obj, gx, gy
+                for gx, gy in self.approach_points(obj, robot_xy, self.standoff + extra):
+                    if self.max_plan_checks <= 0:      # probing disabled: nearest instance at the plain stand-off
+                        return obj, gx, gy
+                    if math.hypot(gx - robot_xy[0], gy - robot_xy[1]) < 0.3:
+                        return obj, gx, gy             # already there: nothing to plan
+                    if checked >= self.max_plan_checks:
+                        return None
+                    checked += 1
+                    if self.has_path(gx, gy):
+                        return obj, gx, gy
         return None
 
     def stop_robot(self):
         self.get_logger().info('STOP requested')
         self.cancel_current_goal_if_active()
+        self.cmd_vel_pub.publish(Twist())      # all-zero velocity
 
     # ------------------------------------------------------------------ command dispatch
 
@@ -250,8 +326,20 @@ class RobotBrain(Node):
             what = f"'{obj.id}' at ({obj.x:.2f}, {obj.y:.2f}), stopping at ({gx:.2f}, {gy:.2f})"
         else:
             gx, gy = rotate_relative_offset(x, y, yaw, cmd.dx, cmd.dy)
+            shortened = ''
+            with self._lock:
+                grid = self.grid
+            if grid is not None and grid.state(x, y) == FREE and not grid.is_free(gx, gy, self.clearance):
+                # The point asked for is inside a wall / unexplored space: go as far as the free floor allows instead
+                # of sending Nav2 a goal it can only abort.
+                stop = grid.last_free_point((x, y), (gx, gy), self.clearance)
+                if stop is None or math.hypot(stop[0] - x, stop[1] - y) < 0.3:
+                    return (f'Cannot move ({cmd.dx:+.1f}, {cmd.dy:+.1f}) m from here: something (a wall or '
+                            'unexplored space) is in the way. Not moving.')
+                shortened = f' (shortened from {math.hypot(cmd.dx, cmd.dy):.1f} m: the rest is blocked)'
+                gx, gy = stop
             ok = self.send_goal(gx, gy, yaw)
-            what = f'relative move ({cmd.dx:+.2f}, {cmd.dy:+.2f}) -> ({gx:.2f}, {gy:.2f})'
+            what = f'relative move ({cmd.dx:+.2f}, {cmd.dy:+.2f}) -> ({gx:.2f}, {gy:.2f}){shortened}'
         return f'Going to {what}.' if ok else 'Nav2 is not available; goal not sent.'
 
 
@@ -283,8 +371,12 @@ class QwenChat:
         return first_command_line(reply)
 
 
-def chat_loop(robot, llm, input_fn=input, output_fn=print):
-    """Read user lines, ask the model, and dispatch its command to the robot."""
+def chat_loop(robot, llm, input_fn=input, output_fn=print, wait_for_result=False, result_timeout=300.0):
+    """Read user lines, ask the model, and dispatch its command to the robot.
+
+    A failing model call or command never ends the session. With `wait_for_result` the loop blocks after each goal
+    until Nav2 reports back (for scripted runs, where leaving would cancel the goal).
+    """
     while True:
         try:
             user_input = input_fn('You: ').strip()
@@ -297,16 +389,30 @@ def chat_loop(robot, llm, input_fn=input, output_fn=print):
 
         question = is_question(user_input)
         pose = robot.get_pose()
-        system_prompt = (build_question_prompt if question else build_system_prompt)(robot.graph, pose)
+        system_prompt = (build_question_prompt if question else build_system_prompt)(
+            robot.graph, pose, mentioned_objects(user_input, robot.graph))
         image = robot.get_latest_image() if needs_vision(user_input) else None
-        response = llm(system_prompt, user_input, image)
+        try:
+            response = llm(system_prompt, user_input, image)
+        except Exception as e:      # e.g. CUDA out of memory: report it and keep the session alive
+            output_fn(f'\n[ERROR] The language model failed ({type(e).__name__}: {e}). Nothing was sent to the robot.\n')
+            continue
         output_fn(f'\nRobot: {response}\n')
         if question:                    # a question is never an order: do not act on whatever the model replied
             continue
 
-        note = robot.execute(parse_response(response, robot.graph.names()))
+        sent_before = robot.goals_sent
+        try:
+            cmd = reconcile_goal(parse_response(response, robot.graph.names()), user_input, robot.graph)
+            note = robot.execute(cmd)
+        except Exception as e:
+            output_fn(f'[ERROR] Could not carry out the command ({type(e).__name__}: {e}).')
+            continue
         if note:
             output_fn(f'[NAV] {note}')
+        if wait_for_result and robot.goals_sent > sent_before:
+            finished = robot.result_event.wait(result_timeout)
+            output_fn(f'[NAV] Result: {robot.last_result if finished else "TIMEOUT (still moving)"}')
 
 
 def parse_args(argv):
@@ -320,6 +426,17 @@ def parse_args(argv):
     p.add_argument('--action-name', default='/navigate_to_pose')
     p.add_argument('--server-timeout', type=float, default=5.0, help='seconds to wait for Nav2')
     p.add_argument('--max-plan-checks', type=int, default=12, help='planner queries allowed when choosing an approach point')
+    p.add_argument('--clearance', type=float, default=0.45,
+                   help='metres a goal must keep from walls on the map (robot radius + margin)')
+    p.add_argument('--preferred-clearance', type=float, default=0.7,
+                   help='metres from walls a stop point should have when one exists (else --clearance is enough)')
+    p.add_argument('--map-topic', default='/map')
+    p.add_argument('--map-yaml', default=os.path.join(os.path.expanduser('~'), 'my_map.yaml'),
+                   help='saved map, used only to judge a raw scene graph when consolidating it (ignored if missing)')
+    p.add_argument('--no-consolidate', action='store_true', help='use the scene graph exactly as saved')
+    p.add_argument('--cmd-vel-topic', default='/cmd_vel', help='where STOP publishes a zero velocity')
+    p.add_argument('--wait-result', action='store_true',
+                   help='after each goal wait for Nav2 to finish before the next line (implied when stdin is not a terminal)')
     return p.parse_args(argv)
 
 
@@ -328,18 +445,19 @@ def main(argv=None):
     rclpy.init(args=argv)
     args = parse_args(rclpy.utilities.remove_ros_args(argv)[1:])
 
-    graph = SceneGraph.load(args.scene_graph)
+    graph = load_graph(args.scene_graph, not args.no_consolidate, args.map_yaml)
     print(f'Loaded {len(graph)} objects from {args.scene_graph}: {", ".join(o.id for o in graph.objects) or "(none)"}')
 
     robot = RobotBrain(graph, args.standoff, args.map_frame, args.base_frame, args.image_topic,
-                       args.action_name, args.server_timeout, args.max_plan_checks)
+                       args.action_name, args.server_timeout, args.max_plan_checks, args.clearance, args.map_topic,
+                       args.cmd_vel_topic, args.preferred_clearance)
     spinner = threading.Thread(target=rclpy.spin, args=(robot,), daemon=True)
     spinner.start()
     try:
         print('Loading Qwen2.5-VL...')
         llm = QwenChat(args.model)
         print('\nRobot ready! Type your command (exit/quit to stop)\n')
-        chat_loop(robot, llm)
+        chat_loop(robot, llm, wait_for_result=args.wait_result or not sys.stdin.isatty())
     finally:
         robot.cancel_current_goal_if_active()
         # Stop the spin thread *before* tearing the node down; exiting with it still inside rclpy aborts the process.

@@ -44,6 +44,19 @@ def standoff_point(obj_xy, robot_xy, standoff):
     return obj_xy[0] + dx * r, obj_xy[1] + dy * r
 
 
+def ring_points(center_xy, toward_xy, radius, step_deg=30):
+    """Points on a circle of `radius` around `center_xy`, starting on the side facing `toward_xy` and fanning out to
+    both sides (0, +30, -30, +60, ... degrees), so the first entries are the least detour from where the robot is."""
+    base = math.atan2(toward_xy[1] - center_xy[1], toward_xy[0] - center_xy[0])
+    offsets = [0.0]
+    for k in range(1, int(180 // step_deg) + 1):
+        offsets += [math.radians(k * step_deg), -math.radians(k * step_deg)]
+    if 180 % step_deg == 0:
+        offsets.pop()                   # +180 and -180 are the same point
+    return [(center_xy[0] + radius * math.cos(base + o), center_xy[1] + radius * math.sin(base + o))
+            for o in offsets]
+
+
 def transform_to_matrix(translation, quaternion_xyzw):
     """4x4 homogeneous matrix from a translation (x, y, z) and quaternion (x, y, z, w)."""
     x, y, z, w = quaternion_xyzw

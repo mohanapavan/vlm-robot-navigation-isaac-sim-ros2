@@ -31,12 +31,25 @@ class Command:
     dy: float = 0.0
 
 
+def _flat(text):
+    """Lower-case with every run of space / '_' / '-' turned into one space, so 'trash_can_2' == 'trash can 2'."""
+    return re.sub(r'[\s_\-]+', ' ', text.lower())
+
+
+_LEADING_ARTICLE_RE = re.compile(r'^(?:the|a|an|nearest|closest)\s+', re.IGNORECASE)
+
+
 def _match_target(rest, known_names):
-    """Pick the object name at the start of `rest`, preferring the longest known name."""
-    rest = rest.strip(_NAME_TRIM)
-    low = rest.lower()
+    """Pick the object name at the start of `rest`, preferring the longest known name.
+
+    Matching ignores case, '_' vs ' ' vs '-' and a leading article, so `GOAL:the trash_can_2` finds the object
+    'trash can_2' (or 'trash_can_2'); the *known* spelling is returned so the scene graph can resolve it.
+    """
+    rest = _LEADING_ARTICLE_RE.sub('', rest.strip(_NAME_TRIM))
+    low = _flat(rest)
     for name in sorted(known_names, key=len, reverse=True):
-        if low.startswith(name) and (len(low) == len(name) or not (low[len(name)].isalnum() or low[len(name)] == '_')):
+        flat = _flat(name)
+        if low.startswith(flat) and (len(low) == len(flat) or not low[len(flat)].isalnum()):
             return name
     m = re.match(r'[\w-]+', rest)
     return m.group(0).lower() if m else ''
@@ -75,6 +88,36 @@ def parse_response(response, known_names=()):
     return Command('TEXT')
 
 
+def mentioned_objects(user_input, graph):
+    """Objects whose id the user typed ('door_13', 'trash can 2'), in any spelling `_flat` folds together."""
+    if graph is None:
+        return []
+    text = _flat(user_input)
+    return [o for o in graph.objects if re.search(rf'(?<![a-z0-9]){re.escape(_flat(o.id))}(?![a-z0-9])', text)]
+
+
+def reconcile_goal(cmd, user_input, graph):
+    """Make a GOAL agree with what the *user* actually said, not with a small model's arbitrary pick.
+
+    * The user named only a class ("take me to the cart") but the model answered with one instance ("cart_1"): a bare
+      class means the nearest one, so the class is used and the brain picks the nearest reachable instance.
+    * The user named an instance ("go to cart_3") and the model wrote another: the user's instance wins.
+    A message with any digit in it is left alone (it may refer to an instance by number in a way not handled here).
+    """
+    if cmd.kind != 'GOAL' or not cmd.target or graph is None:
+        return cmd
+    text = _flat(user_input)
+    named = mentioned_objects(user_input, graph)
+    if len(named) == 1 and _flat(named[0].id) != _flat(cmd.target):
+        return Command('GOAL', target=named[0].id)
+    obj = graph.resolve(cmd.target)
+    if obj is None or named or _flat(cmd.target) != _flat(obj.id) or re.search(r'\d', user_input):
+        return cmd
+    if re.search(rf'(?<![a-z0-9]){re.escape(_flat(obj.label))}(?:s|es)?(?![a-z0-9])', text):
+        return Command('GOAL', target=obj.label)
+    return cmd
+
+
 _COMMAND_START_RE = re.compile(r'^\W*(GOAL|RELATIVE|MOVE|STOP)\b', re.IGNORECASE)
 
 
@@ -90,21 +133,42 @@ def first_command_line(response):
     return response.strip()
 
 
-def _objects_block(graph, robot_pose):
+MAX_LISTED_PER_LABEL = 6
+
+
+def _describe(o, robot_pose):
+    parts = []
+    if o.kind == 'group':
+        parts.append(f'group of {o.members}, {o.size:.0f} m wide')
+    if robot_pose is not None:
+        parts.append(f'{math.hypot(o.x - robot_pose[0], o.y - robot_pose[1]):.0f} m')
+    return f"{o.id} ({', '.join(parts)})" if parts else o.id
+
+
+def _objects_block(graph, robot_pose, also_show=()):
+    """One line per class listing its objects by name (nearest first when the pose is known).
+
+    A class with more than MAX_LISTED_PER_LABEL objects lists the nearest ones and says how many more exist; the bare
+    class name always resolves to the nearest of all of them. Objects in `also_show` (the ones the user just named) are
+    always listed, so the model never says it does not know an object that is in the graph.
+    """
+    forced = {o.id for o in also_show}
     by_label = {}
     for o in graph.objects:
         by_label.setdefault(o.label, []).append(o)
     lines = []
     for label, objs in sorted(by_label.items()):
-        if robot_pose is None:
-            items = ', '.join(o.id for o in objs)
-        else:
-            items = ', '.join(f'{o.id} ({math.hypot(o.x - robot_pose[0], o.y - robot_pose[1]):.0f} m)' for o in objs)
+        if robot_pose is not None:
+            objs = sorted(objs, key=lambda o: math.hypot(o.x - robot_pose[0], o.y - robot_pose[1]))
+        shown = objs[:MAX_LISTED_PER_LABEL] + [o for o in objs[MAX_LISTED_PER_LABEL:] if o.id in forced]
+        items = ', '.join(_describe(o, robot_pose) for o in shown)
+        if len(objs) > len(shown):
+            items += f', +{len(objs) - len(shown)} more'
         lines.append(f'{label}: {items}')
     return '\n'.join(lines)
 
 
-def build_system_prompt(graph, robot_pose=None):
+def build_system_prompt(graph, robot_pose=None, also_show=()):
     """System prompt for a small VLM. Objects are listed by *name*: the model never handles goal coordinates.
 
     Worked examples matter more than rules for a 3B model (without them it answers 'go forward' with a GOAL and
@@ -119,7 +183,7 @@ def build_system_prompt(graph, robot_pose=None):
         where = f'I am at x={x:.2f}, y={y:.2f}, facing {math.degrees(yaw):.0f} degrees.'
     have = graph is not None and len(graph) > 0
     ctx = f'You control a mobile robot with a front camera. {pose_line}\n\n'
-    listing = ' (id, distance from the robot):\n' + _objects_block(graph, robot_pose) if have else ': none'
+    listing = ' (id, distance from the robot):\n' + _objects_block(graph, robot_pose, also_show) if have else ': none'
     ctx += f'Known objects{listing}\n\n'
     ctx += ('Reply with ONE line:\n'
             'GOAL:<object id or class>  - go to a listed object (use the class, e.g. forklift, to mean the nearest one)\n'
@@ -152,7 +216,7 @@ def is_question(user_input):
     return bool(_QUESTION_RE.match(user_input))
 
 
-def build_question_prompt(graph, robot_pose=None):
+def build_question_prompt(graph, robot_pose=None, also_show=()):
     """Answer-only system prompt: same facts as build_system_prompt, but no commands are offered."""
     if robot_pose is None:
         pose_line = "The robot's position is unknown right now."
@@ -160,16 +224,21 @@ def build_question_prompt(graph, robot_pose=None):
         x, y, yaw = robot_pose
         pose_line = f'Robot pose in the map: x={x:.2f}, y={y:.2f}, heading {math.degrees(yaw):.0f} degrees.'
     have = graph is not None and len(graph) > 0
-    listing = ' (id, distance from the robot):\n' + _objects_block(graph, robot_pose) if have else ': none'
+    listing = ' (id, distance from the robot):\n' + _objects_block(graph, robot_pose, also_show) if have else ': none'
     return (f'You are the assistant of a mobile robot with a front camera. {pose_line}\n\n'
             f'Known objects{listing}\n\n'
             "Answer the user's question briefly in plain text, using only the information above (and the camera image "
-            'if one is provided). Do not output commands.')
+            'if one is provided). If asked what you see, describe the picture in words. The pose above is the ROBOT\'s own '
+            'pose: never present it as the position of something you see, and quote coordinates only when asked where '
+            'the robot is. Do not output commands.')
 
 
-VISION_TRIGGERS = ['see', 'look', 'camera', 'view', 'around you', 'in front']
+VISION_TRIGGERS = ['see', 'seeing', 'look', 'looking', 'camera', 'view', 'around you', 'in front']
+
+
+_VISION_RE = re.compile(r'\b(?:' + '|'.join(re.escape(t) for t in VISION_TRIGGERS) + r')\b', re.IGNORECASE)
 
 
 def needs_vision(user_input):
-    text = user_input.lower()
-    return any(trigger in text for trigger in VISION_TRIGGERS)
+    """True when the message asks about what the camera shows (whole words: 'seat' or 'interview' do not count)."""
+    return bool(_VISION_RE.search(user_input))
