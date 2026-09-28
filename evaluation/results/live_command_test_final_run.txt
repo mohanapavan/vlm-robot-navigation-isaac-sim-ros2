@@ -1,0 +1,13 @@
+==============================================================================
+1. PASS  "go forward 2 meters"
+     reply "MOVE:forward 2" -> SUCCEEDED; moved +1.84 m forward, -0.12 m sideways
+2. PASS  "go to the wheelchair"
+     reply "GOAL:wheelchair_1" -> SUCCEEDED; 0.83 m from wheelchair_1 (stand-off 0.8), facing error 3 deg
+3. PASS  "what do you see?"
+     reply "A wheelchair is located at coordinates approximately (-11.09, 3.44) with a heading of 122 degrees."; robot moved 0.003 m, goals sent: 0
+4. PASS  "go to the spaceship"
+     reply "I don't know an object called spaceship."; goals sent: 0, moved 0.000 m
+5. PASS  "go to desk_1"
+     reply "GOAL:desk_1" -> SUCCEEDED; 2.83 m from the centre of desk_1 (group of 3, 3.7 m wide; expected about 2.6 m)
+==============================================================================
+5/5 commands passed

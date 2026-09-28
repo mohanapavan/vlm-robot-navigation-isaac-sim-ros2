@@ -42,3 +42,17 @@ def test_slam_toolbox_params_are_correctly_typed():
 def test_ekf_and_map_configs_parse():
     assert _load('ekf.yaml')['ekf_filter_node']['ros__parameters']['world_frame'] == 'odom'
     assert 'Visualization Manager' in _load('map_view.rviz')
+
+
+@pytest.mark.parametrize('name', ['nav2_params_camera.yaml', 'nav2_params_lidar.yaml'])
+def test_progress_checker_counts_turning_as_progress(name):
+    """A robot that must rotate in place for over 10 s was aborted with 'Failed to make progress'."""
+    pc = _load(name)['controller_server']['ros__parameters']['progress_checker']
+    assert pc['plugin'] == 'nav2_controller::PoseProgressChecker' and pc['required_movement_angle'] > 0
+
+
+@pytest.mark.parametrize('costmap', ['local_costmap', 'global_costmap'])
+def test_lidar_costmaps_keep_plans_away_from_walls_without_blocking_gaps(costmap):
+    p = _load('nav2_params_lidar.yaml')[costmap][costmap]['ros__parameters']
+    assert p['inflation_layer']['inflation_radius'] >= 0.8       # plans stay on open floor
+    assert p['robot_radius'] == 0.35                             # ...but the inscribed radius (what blocks a gap) is unchanged

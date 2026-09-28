@@ -1,0 +1,2 @@
+# Only for scripts/build_report.py (the Word report); nothing else needs it.
+python-docx

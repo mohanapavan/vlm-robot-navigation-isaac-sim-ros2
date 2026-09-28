@@ -14,6 +14,54 @@ class Detection:
     box: tuple      # (x0, y0, x1, y1) in pixels of the image passed to detect()
 
 
+def box_iou(a, b):
+    """Intersection over union of two (x0, y0, x1, y1) boxes."""
+    iw = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    ih = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = iw * ih
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _contained_fraction(inner, outer):
+    """Share of `inner`'s area that lies inside `outer`."""
+    iw = max(0.0, min(inner[2], outer[2]) - max(inner[0], outer[0]))
+    ih = max(0.0, min(inner[3], outer[3]) - max(inner[1], outer[1]))
+    area = (inner[2] - inner[0]) * (inner[3] - inner[1])
+    return iw * ih / area if area > 0 else 0.0
+
+
+def filter_detections(detections, image_shape, iou_same=0.5, iou_cross=0.7, contained=0.9,
+                      max_box_fraction=0.6, min_box_px=12):
+    """Clean up one frame's detections before they become observations.
+
+    GroundingDINO returns several overlapping boxes for one object and never suppresses them, so counting boxes counted
+    the same sighting many times (two boxes in one frame passed the "seen twice" test). This keeps the best box per
+    object: a box is dropped when it overlaps a higher-scoring one of the same class (IoU > iou_same, or mostly inside
+    it) or of another class (IoU > iou_cross: one object cannot be two things). Boxes covering most of the image (their
+    centre says nothing about where the object is) and slivers are dropped too.
+    """
+    h, w = image_shape[:2]
+    kept = []
+    for d in sorted(detections, key=lambda d: -d.score):
+        x0, y0, x1, y1 = d.box
+        if x1 - x0 < min_box_px or y1 - y0 < min_box_px:
+            continue
+        if (x1 - x0) * (y1 - y0) > max_box_fraction * w * h:
+            continue
+        dup = False
+        for k in kept:
+            if k.label == d.label:
+                dup = box_iou(k.box, d.box) > iou_same or _contained_fraction(d.box, k.box) > contained
+            else:
+                dup = box_iou(k.box, d.box) > iou_cross
+            if dup:
+                break
+        if not dup:
+            kept.append(d)
+    return kept
+
+
 def _use_pytorch_deformable_attention():
     """Route GroundingDINO's CUDA deformable-attention call to its pure-PyTorch implementation."""
     import groundingdino.models.GroundingDINO.ms_deform_attn as msda

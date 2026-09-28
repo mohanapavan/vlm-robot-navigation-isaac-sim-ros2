@@ -18,7 +18,7 @@ rclpy = pytest.importorskip('rclpy')
 pytest.importorskip('nav2_msgs')
 pytest.importorskip('tf2_ros')
 
-from geometry_msgs.msg import PoseStamped, TransformStamped  # noqa: E402
+from geometry_msgs.msg import PoseStamped, TransformStamped, Twist  # noqa: E402
 from nav2_msgs.action import ComputePathToPose, NavigateToPose  # noqa: E402
 from rclpy.action import ActionServer, CancelResponse, GoalResponse  # noqa: E402
 from rclpy.callback_groups import ReentrantCallbackGroup  # noqa: E402
@@ -30,6 +30,7 @@ from tf2_ros import TransformBroadcaster  # noqa: E402
 
 from vlm_nav.command_parser import Command  # noqa: E402
 from vlm_nav.geometry import quat_to_yaw, yaw_to_quat  # noqa: E402
+from vlm_nav.map_grid import OCCUPIED, UNKNOWN, MapGrid  # noqa: E402
 from vlm_nav.robot_brain import RobotBrain, chat_loop  # noqa: E402
 from vlm_nav.scene_graph import SceneGraph, SceneObject  # noqa: E402
 
@@ -55,6 +56,8 @@ class FakeWorld(Node):
         self.cancelled = 0
         self.blocked = []              # (x, y, radius) regions the fake planner cannot plan into
         self.plan_queries = []
+        self.cmd_vels = []
+        self.create_subscription(Twist, '/cmd_vel', lambda m: self.cmd_vels.append(m), 10)
         self.tf = TransformBroadcaster(self)
         self.create_timer(0.05, self._pub_tf)
         self.image_pub = self.create_publisher(Image, '/front_stereo_camera/left/image_raw', qos_profile_sensor_data)
@@ -146,7 +149,8 @@ def env(ros):
     world, brain = ros
     brain.cancel_current_goal_if_active()
     world.goals.clear()
-    world.blocked, world.plan_queries = [], []
+    world.blocked, world.plan_queries, world.cmd_vels = [], [], []
+    brain.grid = None
     world.mode, world.cancelled, world.pose, world.publish_tf = 'succeed', 0, (2.0, 3.0, math.pi / 2), True
     wait_for(lambda: brain.get_pose() is not None)
     time.sleep(0.15)
@@ -404,3 +408,115 @@ def test_goal_still_sent_when_the_planner_cannot_be_asked(env):
     finally:
         brain.plan_client.destroy()
         brain.plan_client = real
+
+
+# ---------------------------------------------------------------- map-aware behaviour, groups, resilience
+
+def room_grid(blocks=(), unknown_above=None):
+    """x in [-5, 15], y in [-2, 8] at 0.1 m, all free; `blocks` are (x0, y0, x1, y1) occupied rectangles."""
+    cells = np.zeros((100, 200), dtype=np.int16)
+    for x0, y0, x1, y1 in blocks:
+        cells[int((y0 + 2) / 0.1):int((y1 + 2) / 0.1), int((x0 + 5) / 0.1):int((x1 + 5) / 0.1)] = OCCUPIED
+    if unknown_above is not None:
+        cells[int((unknown_above + 2) / 0.1):, :] = UNKNOWN
+    return MapGrid(cells, 0.1, (-5.0, -2.0))
+
+
+def test_approach_points_skip_walls_and_unexplored_space(env):
+    world, brain = env
+    forklift = GRAPH.objects[0]                                   # (10, 3); the plain stand-off is (9.2, 3.0)
+    brain.grid = room_grid(blocks=[(8.6, 2.4, 9.8, 3.6)])          # a cabinet right where the robot would stop
+    pts = brain.approach_points(forklift, (2.0, 3.0), 0.8)
+    assert pts and (9.2, 3.0) not in [(round(x, 1), round(y, 1)) for x, y in pts]
+    assert all(brain.grid.is_free(x, y, brain.clearance) for x, y in pts)
+    assert all(math.hypot(x - 10.0, y - 3.0) == pytest.approx(0.8, abs=1e-6) for x, y in pts)
+    brain.grid = room_grid(unknown_above=3.2)                      # object at the edge of the explored area
+    assert all(y < 3.2 for _, y in brain.approach_points(forklift, (2.0, 3.0), 0.8))       # only explored cells
+
+
+def test_goal_is_not_sent_into_a_wall_when_the_map_is_known(env):
+    world, brain = env
+    brain.grid = room_grid(blocks=[(8.6, 2.4, 9.8, 3.6)])
+    brain.execute(Command('GOAL', target='forklift'))
+    assert wait_for(lambda: len(world.goals) == 1)
+    g = world.goals[0].pose.position
+    assert brain.grid.is_free(g.x, g.y, brain.clearance)
+    assert math.hypot(g.x - 10.0, g.y - 3.0) == pytest.approx(0.8, abs=0.05)
+
+
+def test_relative_move_is_shortened_when_the_target_is_blocked_and_refused_when_blocked_at_once(env):
+    world, brain = env                                             # robot (2, 3) facing +y
+    brain.grid = room_grid(unknown_above=5.0)                      # the rest of the way is unexplored
+    msg = brain.execute(Command('RELATIVE', dx=4.0, dy=0.0))       # would end at y = 7, in unexplored space
+    assert wait_for(lambda: len(world.goals) == 1)
+    assert 4.0 < world.goals[0].pose.position.y < 5.0 and 'shortened' in msg
+    brain.grid = room_grid(blocks=[(-5.0, 3.2, 15.0, 6.0)])        # solid wall 0.2 m in front, target inside it
+    world.goals.clear()
+    msg = brain.execute(Command('RELATIVE', dx=2.0, dy=0.0))
+    time.sleep(0.3)
+    assert world.goals == [] and 'Not moving' in msg
+    brain.grid = room_grid(blocks=[(-5.0, 3.2, 15.0, 3.5)])        # thin wall, free floor behind it: Nav2 may go around
+    brain.execute(Command('RELATIVE', dx=2.0, dy=0.0))
+    assert wait_for(lambda: len(world.goals) == 1)
+
+
+def test_a_group_is_approached_at_its_edge_not_its_centre(env):
+    world, brain = env
+    brain.graph.objects.append(SceneObject('desk_1', 'desk', 10.0, 3.0, 0.5, 9, 0.5, kind='group', members=4, size=4.0))
+    try:
+        brain.execute(Command('GOAL', target='desk_1'))
+        assert wait_for(lambda: len(world.goals) == 1)
+        assert world.goals[0].pose.position.x == pytest.approx(10.0 - (0.8 + 2.0), abs=0.05)
+    finally:
+        brain.graph.objects.pop()
+
+
+def test_no_planning_when_the_robot_is_already_at_the_standoff(env):
+    world, brain = env
+    world.pose = (9.2, 3.0, 0.0)
+    assert wait_for(lambda: brain.get_pose() and abs(brain.get_pose()[0] - 9.2) < 1e-6)
+    brain.execute(Command('GOAL', target='forklift'))
+    assert wait_for(lambda: len(world.goals) == 1)
+    assert world.plan_queries == []
+
+
+def test_a_failing_model_does_not_end_the_session(env):
+    world, brain = env
+    calls = []
+
+    def llm(system_prompt, user_text, image):
+        calls.append(user_text)
+        if len(calls) == 1:
+            raise RuntimeError('CUDA out of memory')
+        return 'GOAL:forklift'
+
+    lines, out = iter(['go to the forklift', 'go to the forklift', 'exit']), []
+    chat_loop(brain, llm, input_fn=lambda _: next(lines), output_fn=out.append)
+    assert any('[ERROR]' in o and 'CUDA out of memory' in o for o in out)
+    assert wait_for(lambda: len(world.goals) == 1)                     # the second attempt worked
+
+
+def test_wait_for_result_reports_the_outcome(env):
+    world, brain = env
+    lines, out = iter(['go to the forklift', 'exit']), []
+    chat_loop(brain, lambda *a: 'GOAL:forklift', input_fn=lambda _: next(lines), output_fn=out.append,
+              wait_for_result=True, result_timeout=10)
+    assert '[NAV] Result: SUCCEEDED' in out
+
+
+def test_stop_also_zeroes_the_wheels_directly(env):
+    world, brain = env
+    brain.stop_robot()
+    assert wait_for(lambda: any(t.linear.x == 0.0 and t.angular.z == 0.0 for t in world.cmd_vels))
+
+
+def test_roomy_stop_points_are_tried_before_merely_legal_ones(env):
+    world, brain = env
+    forklift = GRAPH.objects[0]                                     # (10, 3); the plain stand-off is (9.2, 3.0)
+    brain.grid = room_grid(blocks=[(8.4, 3.6, 9.6, 3.7)])           # a wall 0.6 m north of the plain stand-off point
+    pts = brain.approach_points(forklift, (2.0, 3.0), 0.8)
+    assert pts and brain.grid.clearance(*pts[0]) >= brain.preferred_clearance
+    assert any(brain.clearance <= brain.grid.clearance(*p) < brain.preferred_clearance for p in pts) \
+        or all(brain.grid.clearance(*p) >= brain.preferred_clearance for p in pts)
+    clearances = [brain.grid.clearance(*p) >= brain.preferred_clearance for p in pts]
+    assert clearances == sorted(clearances, reverse=True)           # every roomy point comes before every tight one

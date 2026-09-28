@@ -1,5 +1,9 @@
 # Language-guided navigation of a Nova Carter robot: results
 
+> **Note:** this report describes the original run in the **warehouse** scene (forklift, shelves, boxes). Results for the
+> hospital scene, the consolidated scene graph and the 5-command / 15-destination live tests are in
+> [EVALUATION.md](EVALUATION.md).
+
 A simulated Nova Carter (NVIDIA Isaac Sim, ROS 2 Humble) maps a warehouse, builds a semantic scene graph with GroundingDINO, and drives to natural-language goals through Nav2, with Qwen2.5-VL as the brain. This report shows what the system does, how close the robot gets to its goals, what we changed, and what we found along the way. Every number below was measured on the running simulator (RTX 5080, Isaac Sim 6.0, ROS 2 Humble).
 
 ## 1. The result in one run

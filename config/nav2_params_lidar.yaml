@@ -11,6 +11,11 @@
 #     at the map origin.
 # The camera pipeline never had an obstacle layer, which is why it never showed this.
 
+# Inflation 0.9 m (was 0.5), scaling 2.5 (was 3.0), both costmaps: the inscribed radius is unchanged, so no gap becomes
+# impassable, but plans keep to the middle of open floor. Found on the live stack: with 0.5 m the plan from the chair_1
+# stand-off hugged the chair 0.51 m from the mapped cells, and the chair's low base (below the 2-D lidar plane, so not on
+# the map) held the robot; with 0.9 m the same plan is 0.3 m longer and stays at least 0.77 m from every mapped obstacle.
+
 controller_server:
   ros__parameters:
     use_sim_time: true
@@ -22,8 +27,11 @@ controller_server:
     controller_plugins: ["FollowPath"]
 
     progress_checker:
-      plugin: "nav2_controller::SimpleProgressChecker"
+      # PoseProgressChecker also counts turning: a robot that has to rotate in place for more than 10 s (to leave a spot
+      # it is facing out of, or to face the object) is making progress, which SimpleProgressChecker cannot see.
+      plugin: "nav2_controller::PoseProgressChecker"
       required_movement_radius: 0.5
+      required_movement_angle: 0.5
       movement_time_allowance: 10.0
 
     goal_checker:
@@ -111,8 +119,8 @@ global_costmap:
         subscribe_to_updates: true
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.5
+        cost_scaling_factor: 2.5
+        inflation_radius: 0.9
 
 local_costmap:
   local_costmap:
@@ -134,5 +142,5 @@ local_costmap:
         subscribe_to_updates: true
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.5
+        cost_scaling_factor: 2.5
+        inflation_radius: 0.9

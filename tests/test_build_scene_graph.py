@@ -23,6 +23,7 @@ from tf2_msgs.msg import TFMessage  # noqa: E402
 from vlm_nav import build_scene_graph  # noqa: E402
 from vlm_nav.detector import Detection  # noqa: E402
 from vlm_nav.geometry import transform_point, transform_to_matrix, yaw_to_quat  # noqa: E402
+from vlm_nav.scene_graph import SCENE_GRAPH_VERSION  # noqa: E402
 
 W, H, FX, FY, CX, CY, BASELINE = 640, 480, 500.0, 500.0, 320.0, 240.0, 0.15
 OPTICAL_Q = (0.5, -0.5, 0.5, -0.5)                 # base_link -> camera *_rgb, as published by Isaac Sim
@@ -166,7 +167,7 @@ def test_object_is_located_in_the_map_frame(tmp_path):
     rc, out, det = run(tmp_path, boxes)
     assert rc == 0
     data = json.loads(out.read_text())
-    assert data['version'] == 2 and data['frame_id'] == 'map'
+    assert data['version'] == SCENE_GRAPH_VERSION and data['frame_id'] == 'map'
     (obj,) = data['objects']
     assert obj['id'] == 'box_1' and obj['label'] == 'box' and obj['count'] >= 5
     err = math.hypot(obj['x'] - OBJ_MAP[0], obj['y'] - OBJ_MAP[1])

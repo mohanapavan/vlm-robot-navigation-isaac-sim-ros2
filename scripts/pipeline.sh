@@ -1,14 +1,27 @@
 #!/bin/bash
 # Start / stop the lidar SLAM + Nav2 stack in the background (logs in ~/pipeline_logs).
 #
-#   scripts/pipeline.sh start [localization|mapping]   # default: localization (resume the saved map)
+#   scripts/pipeline.sh start [static|localization|mapping]
+#       static        serve the saved map (~/my_map.yaml) with an identity map->odom; no pose graph needed  (default
+#                     when ~/my_map.yaml exists and there is no ~/my_map_posegraph.posegraph)
+#       localization  resume slam_toolbox from the saved pose graph (~/my_map_posegraph.posegraph)
+#       mapping       build a new map
 #   scripts/pipeline.sh stop
 #   scripts/pipeline.sh status
 #
-# Isaac Sim must already be playing scene/slam.usd (after Stop -> Play the robot is at the map origin).
+# Isaac Sim must already be playing scene/slam.usd (scripts/launch_isaac.sh; after Stop -> Play the robot is at the
+# map origin). Restart this after every Stop/Play: sim time jumps back to 0. RVIZ=false skips RViz.
 # Order matters: SLAM first, then Nav2 (see docs/commands.md, troubleshooting).
 LOGS="$HOME/pipeline_logs"
-MODE="${2:-localization}"
+if [ -n "${2:-}" ]; then
+    MODE="$2"
+elif [ -f "$HOME/my_map_posegraph.posegraph" ]; then
+    MODE=localization
+elif [ -f "$HOME/my_map.yaml" ]; then
+    MODE=static
+else
+    MODE=mapping
+fi
 
 source_ros() {
     # shellcheck disable=SC1091
@@ -35,9 +48,12 @@ case "${1:-}" in
         source_ros
         mkdir -p "$LOGS"
         if [ "$MODE" = "localization" ] && [ ! -f "$HOME/my_map_posegraph.posegraph" ]; then
-            echo "no ~/my_map_posegraph.posegraph: run in mapping mode or save one first"; exit 1
+            echo "no ~/my_map_posegraph.posegraph: use 'start static' (saved map only) or 'start mapping'"; exit 1
         fi
-        nohup ros2 launch vlm_nav slam_lidar.launch.py mode:="$MODE" > "$LOGS/slam.log" 2>&1 &
+        if [ "$MODE" = "static" ] && [ ! -f "$HOME/my_map.yaml" ]; then
+            echo "no ~/my_map.yaml: copy saved_state/hospital/my_map.* to ~ (see saved_state/hospital/README.md) or run in mapping mode first"; exit 1
+        fi
+        nohup ros2 launch vlm_nav slam_lidar.launch.py mode:="$MODE" rviz:="${RVIZ:-true}" > "$LOGS/slam.log" 2>&1 &
         echo "SLAM ($MODE) starting..."; sleep 25
         nohup ros2 launch vlm_nav navigation.launch.py sensor:=lidar > "$LOGS/nav2.log" 2>&1 &
         for _ in $(seq 1 60); do grep -q "Managed nodes are active" "$LOGS/nav2.log" 2>/dev/null && break; sleep 3; done

@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>vlm_nav</name>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
   <description>Language-guided semantic navigation: Isaac Sim + ROS 2 SLAM + Nav2 + GroundingDINO scene graph + Qwen2.5-VL brain.</description>
   <maintainer email="maintainers@example.com">vlm_nav maintainers</maintainer>
   <license>MIT</license>
